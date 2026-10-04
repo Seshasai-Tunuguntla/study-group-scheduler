@@ -3,14 +3,13 @@ const prisma = require('../prismaClient');
 const { replaceAvailabilitySchema } = require('../validation/schemas');
 const { rangesToSlots } = require('../scheduling/ranges');
 const { SLOTS_PER_WEEK } = require('../scheduling/week');
-const { memberInclude, memberOrder, toMember } = require('../serializers');
+const { loadMembersWithAvailability } = require('../services/memberAvailability');
+const { toMember } = require('../serializers');
 
 // Mounted at /api/groups/:id/availability behind requireAuth and requireMembership, so
 // req.membership is always the caller's own membership in this group: nobody can write
 // anyone else's availability.
 const router = express.Router();
-
-const rangeFields = { startMinute: true, endMinute: true };
 
 // Replaces the caller's availability for this group.
 router.put('/', async (req, res) => {
@@ -39,14 +38,7 @@ router.put('/', async (req, res) => {
 // The group heatmap: who is free in each UTC slot, plus the caller's own ranges so the
 // availability grid can be pre-filled from the same request.
 router.get('/', async (req, res) => {
-  const memberships = await prisma.membership.findMany({
-    where: { groupId: req.membership.groupId },
-    include: {
-      ...memberInclude,
-      availability: { select: rangeFields, orderBy: { startMinute: 'asc' } },
-    },
-    orderBy: memberOrder,
-  });
+  const memberships = await loadMembersWithAvailability(req.membership.groupId);
 
   // slots[i] = user ids of the members free in UTC slot i (slot 0 = Monday 00:00-00:30 UTC).
   // The free count for a slot is slots[i].length; names come from `members`.

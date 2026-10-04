@@ -23,6 +23,13 @@ function labelOf(minuteOfWeek) {
 
 const slotOf = (label) => minuteOf(label) / SLOT_MINUTES;
 
+// A stored-style availability range: range('Mon 09:00', 'Mon 10:00') -> { startMinute: 540, endMinute: 600 }.
+// 'END' means Sunday 24:00 (minute 10080), the exclusive end of the week.
+const range = (from, to) => ({
+  startMinute: minuteOf(from),
+  endMinute: to === 'END' ? SLOTS_PER_WEEK * SLOT_MINUTES : minuteOf(to),
+});
+
 // Slots from `from` up to (not including) `to`, wrapping past Sunday midnight when needed:
 // slotsBetween('Sun 23:00', 'Mon 01:00') -> [334, 335, 0, 1]
 function slotsBetween(from, to) {
@@ -59,6 +66,8 @@ module.exports = {
   ALL_WEEK,
   minuteOf,
   labelOf,
+  slotOf,
+  range,
   slotsBetween,
   dailySlots,
   member,

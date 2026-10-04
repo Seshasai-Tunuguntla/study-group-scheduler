@@ -4,13 +4,7 @@ const {
   rangesToSlots,
   RangeOverlapError,
 } = require('../../../src/scheduling/ranges');
-const { minuteOf, slotsBetween } = require('./weekHelpers');
-
-// range('Mon 09:00', 'Mon 10:00') -> { startMinute: 540, endMinute: 600 }. 'END' is Sunday 24:00.
-const range = (from, to) => ({
-  startMinute: minuteOf(from),
-  endMinute: to === 'END' ? 10080 : minuteOf(to),
-});
+const { range, slotsBetween } = require('./weekHelpers');
 
 describe('splitAtWeekEnd', () => {
   test('leaves a normal range alone', () => {

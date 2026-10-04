@@ -3,7 +3,7 @@ const app = require('../../src/app');
 const ranges = require('../../src/scheduling/ranges');
 const { resetDb, prisma } = require('../helpers/db');
 const { createUser, createGroup, findMembership } = require('../helpers/factories');
-const { minuteOf } = require('../unit/scheduling/weekHelpers');
+const { range } = require('../unit/scheduling/weekHelpers');
 
 beforeEach(resetDb);
 afterEach(() => jest.restoreAllMocks());
@@ -13,9 +13,6 @@ const save = (user, groupId, body) =>
   request(app).put(`/api/groups/${groupId}/availability`).set('Authorization', user.auth).send(body);
 const heatmap = (user, groupId) =>
   request(app).get(`/api/groups/${groupId}/availability`).set('Authorization', user.auth);
-
-// range('Mon 09:00', 'Mon 10:00') -> { startMinute: 540, endMinute: 600 }. 'END' is Sunday 24:00.
-const range = (from, to) => ({ startMinute: minuteOf(from), endMinute: to === 'END' ? 10080 : minuteOf(to) });
 
 const storedRanges = async (user, group) => {
   const membership = await findMembership(user, group);

@@ -17,10 +17,15 @@ function toMember(membership) {
   };
 }
 
+// The short form used inside suggestions and attendance lists.
+function toPerson(membership) {
+  return { userId: membership.user.id, name: membership.user.name, required: membership.required };
+}
+
 function toSession(session) {
   if (!session) return null;
   const { startMinute, durationMinutes, confirmedAt } = session;
   return { startMinute, durationMinutes, confirmedAt };
 }
 
-module.exports = { memberInclude, memberOrder, toMember, toSession };
+module.exports = { memberInclude, memberOrder, toMember, toPerson, toSession };

@@ -14,6 +14,8 @@ const { isUniqueViolation } = require('../utils/prismaErrors');
 const { HttpError } = require('../utils/httpError');
 const { memberInclude, memberOrder, toMember, toSession } = require('../serializers');
 const availabilityRoutes = require('./availability');
+const suggestionRoutes = require('./suggestions');
+const sessionRoutes = require('./session');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -157,5 +159,7 @@ router.delete('/:id/members/:userId', requireMembership, async (req, res) => {
 });
 
 router.use('/:id/availability', requireMembership, availabilityRoutes);
+router.use('/:id/suggestions', requireMembership, suggestionRoutes);
+router.use('/:id/session', requireMembership, sessionRoutes);
 
 module.exports = router;

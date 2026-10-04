@@ -11,6 +11,7 @@ afterAll(() => prisma.$disconnect());
 
 const as = (user) => ({
   get: (path) => request(app).get(path).set('Authorization', user.auth),
+  post: (path, body) => request(app).post(path).set('Authorization', user.auth).send(body),
   put: (path, body) => request(app).put(path).set('Authorization', user.auth).send(body),
   patch: (path, body) => request(app).patch(path).set('Authorization', user.auth).send(body),
   delete: (path) => request(app).delete(path).set('Authorization', user.auth),
@@ -21,10 +22,14 @@ const memberRoutes = [
   ['GET /groups/:id', (c, id) => c.get(`/api/groups/${id}`)],
   ['GET /groups/:id/availability', (c, id) => c.get(`/api/groups/${id}/availability`)],
   ['PUT /groups/:id/availability', (c, id) => c.put(`/api/groups/${id}/availability`, { ranges: [] })],
+  ['GET /groups/:id/suggestions', (c, id) => c.get(`/api/groups/${id}/suggestions?duration=60`)],
+  ['GET /groups/:id/session', (c, id) => c.get(`/api/groups/${id}/session`)],
   ['DELETE /groups/:id/members/:userId', (c, id, target) => c.delete(`/api/groups/${id}/members/${target.id}`)],
 ];
 const organizerRoutes = [
   ['PATCH /groups/:id/members/:userId', (c, id, target) => c.patch(`/api/groups/${id}/members/${target.id}`, { required: false })],
+  ['POST /groups/:id/session', (c, id) => c.post(`/api/groups/${id}/session`, { startMinute: 540, durationMinutes: 60 })],
+  ['DELETE /groups/:id/session', (c, id) => c.delete(`/api/groups/${id}/session`)],
 ];
 const allRoutes = [...memberRoutes, ...organizerRoutes];
 
