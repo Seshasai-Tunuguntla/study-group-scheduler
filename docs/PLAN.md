@@ -30,7 +30,7 @@ Same conventions as the author's previous project (Landlord Maintenance Tracker)
 - **Auth:** bcrypt + JWT (7-day expiry, user id only, HS256 pinned); membership/organizer middleware; ownership checks on every route
 - **Security:** helmet, CORS allow-list via `CLIENT_ORIGIN`, rate limiting on login/register and on failed join attempts
 - **Tests:** Jest + Supertest against a separate `*_test` database; `tests/unit` needs no database
-- **CI:** GitHub Actions: server lint + tests (Postgres 17 service) and client lint + build on every push
+- **CI:** GitHub Actions: server lint + tests (Postgres 17 service) and client lint + tests (Vitest) + build on every push
 - **Deploy (phase 12):** Vercel (frontend, `/api` rewrite to the backend), Neon (Postgres), Render (backend)
 - **Central error handler:** Zod -> 400, Prisma P2002 -> 409, P2025 -> 404, `HttpError` -> its status
 - **Local ports:** API 4100, web 5180 (so it can run next to the Landlord project on 4000/5173)
@@ -173,17 +173,38 @@ Attendance is recalculated from current availability on every request.
 | 4 | Groups, memberships, join codes, role/ownership checks + tests | Done |
 | 5 | Availability API with validation and range merging + tests | Done |
 | 6 | Suggestions endpoint + session confirm/get/delete + tests | Done |
-| 7 | Frontend: auth pages, dashboard, group page | In progress |
+| 7 | Frontend: auth pages, dashboard, group page (+ Members and Suggestions tabs, session card) | Built, in review |
 | 8 | Availability grid with drag-select and time zone conversion | |
-| 9 | Heatmap and suggestions UI | |
+| 9 | Heatmap UI, preferred-hours control on Suggestions | |
 | 10 | Self-resetting demo data + tests | |
 | 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test | |
 | 12 | Deployment config | |
 
+## Frontend decisions (phase 7)
+
+- **Which time zone:** times are shown in the zone saved on the account (`user.timeZone`), the same zone the server reads preferred hours in, so display and scheduling always agree. `TimeZoneNote` says which zone is in use. It warns when the device's zone has a different offset (comparing offsets, since browsers may report `Asia/Calcutta` for `Asia/Kolkata`).
+- **Time code:** UTC <-> local conversion and formatting live in `client/src/time/week.js` (unit tested with Vitest), and formatting follows the browser locale (12h/24h).
+- **Routing:** group tabs are nested routes (`/groups/:id/availability|heatmap|suggestions|members`), so each tab has its own URL.
+- **Loading data:** every screen loads through `useLoad(load, key)`, which handles the loading, error (with retry) and loaded states and ignores out-of-date responses.
+- **Signing out:** any 401 on a signed-in request logs out. At startup, only a 401 clears the saved token; if the server is unreachable, the app shows "Can't reach the server" with Try again instead of logging the user out.
+- **Suggestions tab (built in phase 7):** handles every `reason`, the `mayChange` banner, and organizer Confirm. Session attendance is shown on the group page. Waiting lists say "you" for the viewer.
+- **Look:** the Landlord project's palette, fonts (Barlow / Barlow Condensed) and building blocks; the header's hazard tape became a strip of half-hour slots.
+
 ## Notes for later phases
+
+### Phase 8: availability grid
+- Replace the placeholder in `client/src/pages/group/AvailabilityTab.jsx`.
+- Build rows from UTC slots and label them in the account's zone (handles +05:45 zones).
+- Selected local slots -> UTC ranges for `PUT /availability` (the server splits wrap-arounds and merges).
+- Show the "never saved" vs "saved empty" difference, and make an explicit Save with unsaved-changes feedback.
+
+### Phase 9: heatmap and preferred hours
+- Replace `HeatmapTab.jsx`.
+- Add `preferredStart`/`preferredEnd` controls to the Suggestions tab.
 
 ### Phase 10: demo
 - Demo accounts can't join other groups, and nobody can join the demo group. Same pattern as the Landlord project.
+- Add the one-click "Try the demo" buttons to `client/src/components/AuthLayout.jsx` (left out in phase 7 because the accounts didn't exist yet).
 
 ### Phase 11: README
 - **Design decisions:** prefix sums; non-member 404; organizer-only join code (deliberate); "never saved" vs "saved empty"; update-first transaction ordering (a test caught the race); CHECK constraints in the init migration; password hashes omitted by default.
