@@ -4,6 +4,8 @@ const helmet = require('helmet');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const { HttpError } = require('./utils/httpError');
 
+const authRoutes = require('./routes/auth');
+
 const app = express();
 
 // Hosted behind one reverse proxy in production; needed so req.ip and the rate limiter see the real client.
@@ -27,6 +29,8 @@ app.use(
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+
+app.use('/api/auth', authRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

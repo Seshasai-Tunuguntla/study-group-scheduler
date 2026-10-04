@@ -1,5 +1,3 @@
-// Models are added in phase 3 (users/auth) and phase 4+ (groups, availability, sessions).
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,4 +5,91 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// Times below are UTC minutes since Monday 00:00 (0-10079), the same circular week as
+// src/scheduling/week.js. CHECK constraints in the init migration enforce the ranges.
+
+// Roles are per group, so they live on Membership, not User.
+enum Role {
+  ORGANIZER
+  MEMBER
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String // bcrypt hash; omitted from query results by default (see src/prismaClient.js)
+  timeZone  String // IANA name captured from the browser at signup, e.g. "Asia/Kolkata"
+  createdAt DateTime @default(now())
+
+  memberships       Membership[]
+  createdGroups     Group[]      @relation("GroupCreator")
+  confirmedSessions Session[]    @relation("SessionConfirmer")
+}
+
+model Group {
+  id        Int      @id @default(autoincrement())
+  name      String
+  joinCode  String   @unique
+  createdAt DateTime @default(now())
+
+  // Who created the group, for the record. Permissions always come from Membership.role.
+  createdById Int
+  createdBy   User @relation("GroupCreator", fields: [createdById], references: [id])
+
+  memberships Membership[]
+  session     Session?
+}
+
+model Membership {
+  id       Int      @id @default(autoincrement())
+  role     Role     @default(MEMBER)
+  required Boolean  @default(true)
+  joinedAt DateTime @default(now())
+
+  // Null until the member first saves availability. Lets suggestions tell "hasn't responded yet"
+  // (left out of the required check) apart from "saved, but never free" (normal rules apply).
+  availabilityUpdatedAt DateTime?
+
+  userId  Int
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  groupId Int
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  availability AvailabilityRange[]
+
+  // Also serves "my groups" lookups by userId (leftmost column of the index).
+  @@unique([userId, groupId])
+  // Serves "members of this group" lookups.
+  @@index([groupId])
+}
+
+// One free block in a member's weekly availability. End is exclusive. Ranges never wrap:
+// a Sunday-night-into-Monday block is stored as [..., 10080) plus [0, ...).
+model AvailabilityRange {
+  id          Int @id @default(autoincrement())
+  startMinute Int
+  endMinute   Int
+
+  membershipId Int
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
+}
+
+// The group's confirmed weekly meeting. groupId is unique: one session per group for now,
+// and confirming a new time replaces it.
+model Session {
+  id              Int      @id @default(autoincrement())
+  startMinute     Int
+  durationMinutes Int
+  confirmedAt     DateTime @default(now())
+
+  groupId Int   @unique
+  group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  confirmedById Int
+  confirmedBy   User @relation("SessionConfirmer", fields: [confirmedById], references: [id])
 }
