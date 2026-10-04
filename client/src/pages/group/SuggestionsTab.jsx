@@ -14,10 +14,11 @@ const SHORT_LABELS = { 30: '30m', 60: '1h', 90: '1.5h', 120: '2h', 150: '2.5h', 
 
 export default function SuggestionsTab() {
   const { group } = useOutletContext();
+  const { availabilityVersion } = useAuth();
   const [duration, setDuration] = useState(60);
   const { data, error, loading, reload } = useLoad(
     () => api.getSuggestions(group.id, { duration }),
-    duration
+    `${duration}:${availabilityVersion}`
   );
 
   let content;

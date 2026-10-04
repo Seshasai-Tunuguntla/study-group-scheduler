@@ -7,22 +7,26 @@ import Loading from '../../components/Loading';
 import ErrorState from '../../components/ErrorState';
 import AvailabilityGrid from '../../availability/AvailabilityGrid';
 import { buildWeekGrid, copyDay, rangesFromSlots, sameSlots, slotsFromRanges } from '../../availability/grid';
+import { LEAVE_WARNING, setUnsavedChanges } from '../../availability/unsavedChanges';
 import { formatDuration, SLOT_MINUTES } from '../../time/week';
-
-const LEAVE_WARNING = 'You have unsaved changes to your availability. Leave without saving?';
 
 export default function AvailabilityTab() {
   const { group } = useOutletContext();
-  const { user } = useAuth();
-  const { data, error, reload } = useLoad(() => api.getAvailability(group.id), group.id);
+  const { user, availabilityVersion } = useAuth();
+  // availabilityVersion changes when a "keep my local hours" switch moved the saved ranges on the
+  // server: load them again and start the editor fresh.
+  const key = `${group.id}:${availabilityVersion}`;
+  const { data, error, loading, reload } = useLoad(() => api.getAvailability(group.id), key);
 
-  if (data === undefined) {
+  if (data === undefined || loading) {
     if (error) return <ErrorState error={error} onRetry={reload} title="Couldn't load your availability" />;
     return <Loading label="Loading your availability…" />;
   }
 
   const me = data.members.find((member) => member.userId === user.id);
-  return <AvailabilityEditor initialRanges={data.myRanges} initialSavedAt={me.availabilityUpdatedAt} />;
+  return (
+    <AvailabilityEditor key={key} initialRanges={data.myRanges} initialSavedAt={me.availabilityUpdatedAt} />
+  );
 }
 
 function AvailabilityEditor({ initialRanges, initialSavedAt }) {
@@ -43,7 +47,14 @@ function AvailabilityEditor({ initialRanges, initialSavedAt }) {
   const neverSaved = savedAt === null;
   const dirty = !sameSlots(draft, saved);
 
-  // Leaving with unsaved changes: in-app navigation (tabs, links) asks first...
+  // Lets actions outside this screen (a time zone switch that reloads the grid) ask before
+  // throwing the edits away.
+  useEffect(() => {
+    setUnsavedChanges(dirty);
+    return () => setUnsavedChanges(false);
+  }, [dirty]);
+
+  // Leaving with unsaved changes: in-app navigation (tabs, links, logging out) asks first...
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname
   );

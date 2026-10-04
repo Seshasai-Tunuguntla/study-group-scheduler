@@ -2,6 +2,7 @@ const {
   preferredWindowSlots,
   utcOffsetMinutes,
   parseTimeOfDay,
+  localHoursShiftMinutes,
 } = require('../../../src/scheduling/preferredWindow');
 const { dailySlots, slotOf } = require('./weekHelpers');
 
@@ -78,5 +79,40 @@ describe('preferredWindowSlots', () => {
 
   test('an empty window is an error', () => {
     expect(() => preferred('16:00', '16:00', 'UTC')).toThrow('the preferred window must not be empty');
+  });
+});
+
+describe('localHoursShiftMinutes', () => {
+  test.each([
+    ['Asia/Kolkata', 'Asia/Tokyo', WINTER, -210], // 18:00 IST = 12:30 UTC, 18:00 JST = 09:00 UTC
+    ['Asia/Tokyo', 'Asia/Kolkata', WINTER, 210],
+    ['Asia/Kolkata', 'Asia/Calcutta', WINTER, 0], // same zone, old name
+    ['UTC', 'America/New_York', WINTER, 300],
+    ['UTC', 'America/New_York', SUMMER, 240], // uses the offsets in force at the moment
+    ['America/St_Johns', 'UTC', WINTER, -210], // -03:30: a half hour, but not a tie
+  ])('%s -> %s at %s: %i minutes', (from, to, at, expected) => {
+    expect(localHoursShiftMinutes(from, to, at)).toBe(expected);
+  });
+
+  describe('exact ties (zones 15 or 45 minutes apart) round toward zero', () => {
+    test.each([
+      // India (+05:30) and Nepal (+05:45) are exactly 15 minutes apart: half way between 0 and 30.
+      ['Asia/Kolkata', 'Asia/Kathmandu', 0],
+      ['Asia/Kathmandu', 'Asia/Kolkata', 0],
+      // UTC and Nepal are 345 minutes apart: half way between 330 and 360, so 330.
+      ['UTC', 'Asia/Kathmandu', -330],
+      ['Asia/Kathmandu', 'UTC', 330],
+    ])('%s -> %s: %i minutes', (from, to, expected) => {
+      expect(localHoursShiftMinutes(from, to, WINTER)).toBe(expected);
+    });
+  });
+
+  test('switching there and back always cancels out, ties included', () => {
+    const zones = ['UTC', 'Asia/Kolkata', 'Asia/Kathmandu', 'Asia/Tokyo', 'America/New_York', 'Pacific/Chatham', 'America/St_Johns'];
+    for (const a of zones) {
+      for (const b of zones) {
+        expect(localHoursShiftMinutes(a, b, WINTER) + localHoursShiftMinutes(b, a, WINTER)).toBe(0);
+      }
+    }
   });
 });

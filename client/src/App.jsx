@@ -1,4 +1,5 @@
-import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Loading from './components/Loading';
 import ErrorState from './components/ErrorState';
@@ -21,6 +22,16 @@ export function HomeRedirect() {
   return <Navigate to={user ? '/dashboard' : '/login'} replace />;
 }
 
+// Logging out is a navigation to /logout rather than a direct call, so a page with unsaved
+// changes (the availability grid) can intercept it with the same leave warning as any link.
+export function Logout() {
+  const { user, logout } = useAuth();
+  useEffect(() => {
+    if (user) logout();
+  }, [user, logout]);
+  return user ? null : <Navigate to="/login" replace />;
+}
+
 function CalendarIcon() {
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="brand-icon">
@@ -33,7 +44,8 @@ function CalendarIcon() {
 
 // The frame around every page: header, then the page (once the saved login has been checked).
 export default function AppLayout() {
-  const { user, logout, loading, startupError, retryStartup } = useAuth();
+  const { user, loading, startupError, retryStartup } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="app">
@@ -45,7 +57,7 @@ export default function AppLayout() {
         {user && (
           <div className="user-info">
             <span className="user-name">{user.name}</span>
-            <button type="button" className="btn-ghost" onClick={logout}>
+            <button type="button" className="btn-ghost" onClick={() => navigate('/logout')}>
               Log out
             </button>
           </div>

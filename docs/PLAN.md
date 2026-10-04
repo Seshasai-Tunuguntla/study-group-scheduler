@@ -94,7 +94,7 @@ organizer-only route gets **403**. Errors are always `{ error, details? }`.
 | POST | `/auth/register` | `{ name, email, password, timeZone }` | 201 `{ token, user }` |
 | POST | `/auth/login` | `{ email, password }` | 200 `{ token, user }`; 401 for a wrong email or password (same message) |
 | GET | `/auth/me` | | `{ user }`; 401 if the token is bad or the user is gone |
-| PATCH | `/auth/me` | `{ timeZone }` | `{ user }`. Only the zone can change. Stored availability (UTC) doesn't move; it is just shown in the new zone |
+| PATCH | `/auth/me` | `{ timeZone, keepLocalTimes? }` | `{ user, shiftedByMinutes }`. Only the zone can change. By default stored availability (UTC) doesn't move. With `keepLocalTimes: true` it's shifted to keep the same local clock times |
 
 `user` = `{ id, name, email, timeZone, createdAt }`
 
@@ -206,8 +206,13 @@ Attendance is recalculated from current availability on every request.
   - An explicit Save, with "Not saved yet" / "Saved" / "Last saved …" and Discard.
   - Leaving with unsaved changes asks first: `useBlocker` for in-app navigation (this needed the switch to a data router, `src/router.jsx`), `beforeunload` for reloading or closing the tab.
   - "Copy Monday to weekdays" and "Clear" edit the draft only, until Save.
-- **Changing the saved time zone:** `PATCH /auth/me { timeZone }`, offered by the "Use this device's time zone" button in the mismatch notice. Saved availability stays at the same UTC moments and is just re-labelled, so the rest of the group sees no change. The UI says so after switching.
-- **Known gap:** logging out with unsaved grid changes discards them without asking (the editor unmounts before the blocker can run).
+- **Changing the saved time zone:** `PATCH /auth/me { timeZone, keepLocalTimes }`, offered by the "Use this device's time zone" button in the mismatch notice, which asks what should happen to saved availability.
+  - **Keep the same moments (default):** ranges stay at the same UTC moments and are just re-labelled, so the rest of the group sees no change.
+  - **Keep my local hours:** every saved schedule is shifted in one transaction so 18:00 stays 18:00 locally. Ranges live on 30-minute UTC slots, so the shift is rounded to the nearest half hour.
+    - Exact ties (zones 15 or 45 minutes apart, such as India <-> Nepal or UTC <-> Nepal) **round toward zero**: the smaller move.
+    - Because the rule is symmetric, switching A -> B -> A always restores the original ranges, and local times stay within 15 minutes. `Math.round` would not: it rounds +0.5 up but -0.5 to 0, so India -> Nepal moved 0 while Nepal -> India moved +30.
+  - The response's `shiftedByMinutes` bumps `availabilityVersion` on the client, so the grid, suggestions and attendance reload. Unsaved grid edits are confirmed before they're dropped.
+- **Logging out** goes through a `/logout` route, so the grid's leave warning covers it too.
 
 ### Phase 9: heatmap and preferred hours
 - Replace `HeatmapTab.jsx`.
@@ -229,6 +234,7 @@ Attendance is recalculated from current availability on every request.
 - Add one Playwright end-to-end smoke test: log in -> open a group -> see suggestions. Run it in CI against a seeded test database and both dev servers (or the built client).
 
 ### Phase 12: deploy
+- After deploying, test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.
 - Requests go browser -> Vercel rewrite -> Render. With `trust proxy = 1`, `req.ip` may be Vercel's edge IP for everyone, putting all users in one bucket for **both** the auth limiter and the join-code limiter.
 - Log `req.ip` in production, then fix `trust proxy` or the limiters' key function so both use the real client IP, and add a test for the key function.
 - The `TODO(deploy)` comment is in `server/src/app.js`.

@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
+import { useAuth } from '../../hooks/useAuth';
 import { useLoad } from '../../hooks/useLoad';
 import Loading from '../../components/Loading';
 import ErrorState from '../../components/ErrorState';
@@ -23,8 +24,10 @@ export function GroupRoute() {
 }
 
 function GroupPage({ groupId }) {
+  // Attendance depends on everyone's availability, which a "keep my local hours" switch can move.
+  const { availabilityVersion } = useAuth();
   const groupLoad = useLoad(() => api.getGroup(groupId), groupId);
-  const sessionLoad = useLoad(() => api.getSession(groupId), groupId);
+  const sessionLoad = useLoad(() => api.getSession(groupId), `${groupId}:${availabilityVersion}`);
   const group = groupLoad.data?.group;
 
   if (!group) {

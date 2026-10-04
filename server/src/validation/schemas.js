@@ -48,8 +48,11 @@ const loginSchema = z.object({
 });
 
 // PATCH /auth/me: only the time zone can change. Other fields (email, password) are ignored.
+// keepLocalTimes: false (default) keeps saved availability at the same UTC moments;
+// true moves it so it shows at the same local clock times in the new zone.
 const updateMeSchema = z.object({
   timeZone: timeZoneSchema,
+  keepLocalTimes: z.boolean({ message: 'keepLocalTimes must be true or false' }).default(false),
 });
 
 // Route params arrive as strings. The upper bound keeps ids inside Postgres INTEGER, so a huge

@@ -1,5 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
-import AppLayout, { HomeRedirect, RequireAuth, SignedOutOnly } from './App';
+import AppLayout, { HomeRedirect, Logout, RequireAuth, SignedOutOnly } from './App';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +19,7 @@ export const router = createBrowserRouter([
       { path: '/', element: <HomeRedirect /> },
       { path: '/login', element: <SignedOutOnly><Login /></SignedOutOnly> },
       { path: '/register', element: <SignedOutOnly><Register /></SignedOutOnly> },
+      { path: '/logout', element: <Logout /> },
       {
         element: <RequireAuth />,
         children: [

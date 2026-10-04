@@ -2,6 +2,7 @@ const {
   normalizeRanges,
   splitAtWeekEnd,
   rangesToSlots,
+  shiftRanges,
   RangeOverlapError,
 } = require('../../../src/scheduling/ranges');
 const { range, slotsBetween } = require('./weekHelpers');
@@ -108,5 +109,31 @@ describe('rangesToSlots', () => {
   test('handles several ranges and none', () => {
     expect(rangesToSlots([range('Mon 00:00', 'Mon 00:30'), range('Sun 23:30', 'END')])).toEqual([0, 335]);
     expect(rangesToSlots([])).toEqual([]);
+  });
+});
+
+describe('shiftRanges', () => {
+  test('moves ranges later or earlier in the week', () => {
+    expect(shiftRanges([range('Mon 09:00', 'Mon 10:00')], 90)).toEqual([range('Mon 10:30', 'Mon 11:30')]);
+    expect(shiftRanges([range('Wed 18:00', 'Wed 20:00')], -210)).toEqual([range('Wed 14:30', 'Wed 16:30')]);
+  });
+
+  test('wraps around the week and splits at the boundary', () => {
+    expect(shiftRanges([range('Sun 22:00', 'END')], 120)).toEqual([range('Mon 00:00', 'Mon 02:00')]);
+    expect(shiftRanges([range('Mon 00:00', 'Mon 05:00')], -210)).toEqual([
+      range('Mon 00:00', 'Mon 01:30'),
+      range('Sun 20:30', 'END'),
+    ]);
+  });
+
+  test('re-merges pieces that end up touching', () => {
+    // Sunday 23:00-24:00 and Monday 00:00-01:00 are stored as two rows; moved 2 hours they touch.
+    expect(shiftRanges([range('Mon 00:00', 'Mon 01:00'), range('Sun 23:00', 'END')], 120)).toEqual([
+      range('Mon 01:00', 'Mon 03:00'),
+    ]);
+  });
+
+  test('a shift off the 30-minute grid is an error', () => {
+    expect(() => shiftRanges([range('Mon 09:00', 'Mon 10:00')], 15)).toThrow('shift must be a multiple of 30 minutes, got 15');
   });
 });

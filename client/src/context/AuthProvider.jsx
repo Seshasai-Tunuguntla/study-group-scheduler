@@ -62,15 +62,32 @@ export function AuthProvider({ children }) {
     setUser(data.user);
   }, []);
 
+  // Bumped when the server moves the user's saved availability (a "keep my local hours" switch),
+  // so screens showing availability, suggestions or attendance load it again.
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
+
   // Every time on screen re-renders in the new zone as soon as `user` updates.
-  const updateTimeZone = useCallback(async (timeZone) => {
-    const data = await api.updateTimeZone(timeZone);
+  // Resolves to how far the saved availability moved (0 unless keepLocalTimes).
+  const updateTimeZone = useCallback(async (timeZone, { keepLocalTimes = false } = {}) => {
+    const data = await api.updateTimeZone(timeZone, keepLocalTimes);
     setUser(data.user);
+    if (data.shiftedByMinutes !== 0) setAvailabilityVersion((version) => version + 1);
+    return data.shiftedByMinutes;
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, startupError, retryStartup, login, register, logout, updateTimeZone }),
-    [user, loading, startupError, retryStartup, login, register, logout, updateTimeZone]
+    () => ({
+      user,
+      loading,
+      startupError,
+      retryStartup,
+      login,
+      register,
+      logout,
+      updateTimeZone,
+      availabilityVersion,
+    }),
+    [user, loading, startupError, retryStartup, login, register, logout, updateTimeZone, availabilityVersion]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

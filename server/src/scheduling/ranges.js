@@ -51,4 +51,18 @@ function rangesToSlots(ranges) {
   return slots;
 }
 
-module.exports = { normalizeRanges, splitAtWeekEnd, rangesToSlots, RangeOverlapError };
+// Moves stored ranges by `minutes` around the circular week (e.g. to keep a user's local clock
+// times when they change time zone) and returns them in stored form. The shift must stay on the
+// 30-minute grid.
+function shiftRanges(ranges, minutes) {
+  if (minutes % SLOT_MINUTES !== 0) {
+    throw new RangeError(`shift must be a multiple of ${SLOT_MINUTES} minutes, got ${minutes}`);
+  }
+  const shiftedSlots = rangesToSlots(ranges).map((slot) => {
+    const start = (((slot * SLOT_MINUTES + minutes) % MINUTES_PER_WEEK) + MINUTES_PER_WEEK) % MINUTES_PER_WEEK;
+    return { startMinute: start, endMinute: start + SLOT_MINUTES };
+  });
+  return normalizeRanges(shiftedSlots);
+}
+
+module.exports = { normalizeRanges, splitAtWeekEnd, rangesToSlots, shiftRanges, RangeOverlapError };

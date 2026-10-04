@@ -205,7 +205,7 @@ describe('PATCH /api/auth/me', () => {
     const res = await updateMe({ timeZone: 'Europe/London' });
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ user: { ...user, timeZone: 'Europe/London' } });
+    expect(res.body).toEqual({ user: { ...user, timeZone: 'Europe/London' }, shiftedByMinutes: 0 });
     expect((await me(`Bearer ${token}`)).body.user.timeZone).toBe('Europe/London');
   });
 
@@ -223,24 +223,128 @@ describe('PATCH /api/auth/me', () => {
     expect(await bcrypt.compare(ana.password, stored.password)).toBe(true);
   });
 
-  test("leaves saved availability where it is (it's stored in UTC)", async () => {
+  // A group where `owner` is organizer and has saved `ranges` (or never saved, with ranges: null).
+  async function groupWithAvailability(owner, ranges, joinCode) {
     const group = await prisma.group.create({
       data: {
         name: 'Group',
-        joinCode: 'ABCDEFGH',
-        createdById: user.id,
-        memberships: { create: { userId: user.id, role: 'ORGANIZER' } },
+        joinCode,
+        createdById: owner.id,
+        memberships: {
+          create: { userId: owner.id, role: 'ORGANIZER', availabilityUpdatedAt: ranges ? new Date('2026-01-01') : null },
+        },
       },
       include: { memberships: true },
     });
     const membershipId = group.memberships[0].id;
-    await prisma.availabilityRange.create({ data: { membershipId, startMinute: 750, endMinute: 990 } });
+    if (ranges) await prisma.availabilityRange.createMany({ data: ranges.map((r) => ({ ...r, membershipId })) });
+    return membershipId;
+  }
 
-    await updateMe({ timeZone: 'America/New_York' });
+  const storedRanges = (membershipId) =>
+    prisma.availabilityRange.findMany({
+      where: { membershipId },
+      select: { startMinute: true, endMinute: true },
+      orderBy: { startMinute: 'asc' },
+    });
 
-    expect(await prisma.availabilityRange.findMany({ where: { membershipId } })).toEqual([
-      expect.objectContaining({ startMinute: 750, endMinute: 990 }),
-    ]);
+  describe('by default, saved availability stays at the same moments', () => {
+    test("ranges don't move (they're stored in UTC) and nothing is reported as shifted", async () => {
+      const membershipId = await groupWithAvailability(user, [{ startMinute: 750, endMinute: 990 }], 'AAAA2222');
+
+      const res = await updateMe({ timeZone: 'Asia/Tokyo' });
+
+      expect(res.body.shiftedByMinutes).toBe(0);
+      expect(await storedRanges(membershipId)).toEqual([{ startMinute: 750, endMinute: 990 }]);
+    });
+  });
+
+  describe('with keepLocalTimes, saved availability keeps its local clock times', () => {
+    test('shifts every group so 18:00-22:00 in India becomes 18:00-22:00 in Japan', async () => {
+      // 18:00-22:00 IST on Monday = 12:30-16:30 UTC.
+      const first = await groupWithAvailability(user, [{ startMinute: 750, endMinute: 990 }], 'AAAA2222');
+      // Monday 00:00-05:00 UTC: moving it 3.5 hours earlier wraps it back into Sunday.
+      const second = await groupWithAvailability(user, [{ startMinute: 0, endMinute: 300 }], 'BBBB3333');
+
+      const res = await updateMe({ timeZone: 'Asia/Tokyo', keepLocalTimes: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ user: { timeZone: 'Asia/Tokyo' }, shiftedByMinutes: -210 });
+      // 18:00-22:00 JST = 09:00-13:00 UTC.
+      expect(await storedRanges(first)).toEqual([{ startMinute: 540, endMinute: 780 }]);
+      expect(await storedRanges(second)).toEqual([
+        { startMinute: 0, endMinute: 90 },
+        { startMinute: 9870, endMinute: 10080 },
+      ]);
+    });
+
+    test('marks the shifted schedules as saved now, and leaves never-saved ones alone', async () => {
+      const saved = await groupWithAvailability(user, [{ startMinute: 750, endMinute: 990 }], 'AAAA2222');
+      const neverSaved = await groupWithAvailability(user, null, 'BBBB3333');
+
+      await updateMe({ timeZone: 'Asia/Tokyo', keepLocalTimes: true });
+
+      const savedMembership = await prisma.membership.findUnique({ where: { id: saved } });
+      expect(savedMembership.availabilityUpdatedAt.getTime()).toBeGreaterThan(new Date('2026-01-01').getTime());
+      expect(await prisma.membership.findUnique({ where: { id: neverSaved } })).toMatchObject({
+        availabilityUpdatedAt: null,
+      });
+    });
+
+    test("never touches other people's availability", async () => {
+      const ben = (await register({ ...ana, email: 'ben@example.com' })).body.user;
+      const bens = await groupWithAvailability(ben, [{ startMinute: 750, endMinute: 990 }], 'CCCC4444');
+
+      await updateMe({ timeZone: 'Asia/Tokyo', keepLocalTimes: true });
+
+      expect(await storedRanges(bens)).toEqual([{ startMinute: 750, endMinute: 990 }]);
+    });
+
+    test('exact ties round toward zero: UTC -> Nepal is exactly -345 minutes and moves -330', async () => {
+      await updateMe({ timeZone: 'UTC' });
+      const membershipId = await groupWithAvailability(user, [{ startMinute: 1080, endMinute: 1140 }], 'AAAA2222');
+
+      const res = await updateMe({ timeZone: 'Asia/Kathmandu', keepLocalTimes: true });
+
+      expect(res.body.shiftedByMinutes).toBe(-330);
+      expect(await storedRanges(membershipId)).toEqual([{ startMinute: 750, endMinute: 810 }]);
+    });
+
+    test('India <-> Nepal (exactly 15 minutes apart) is a tie in both directions and moves nothing', async () => {
+      const membershipId = await groupWithAvailability(user, [{ startMinute: 750, endMinute: 990 }], 'AAAA2222');
+
+      const there = await updateMe({ timeZone: 'Asia/Kathmandu', keepLocalTimes: true });
+      const back = await updateMe({ timeZone: 'Asia/Kolkata', keepLocalTimes: true });
+
+      expect([there.body.shiftedByMinutes, back.body.shiftedByMinutes]).toEqual([0, 0]);
+      expect(await storedRanges(membershipId)).toEqual([{ startMinute: 750, endMinute: 990 }]);
+    });
+
+    test('switching to another zone and back puts availability exactly where it started', async () => {
+      await updateMe({ timeZone: 'UTC' });
+      const membershipId = await groupWithAvailability(user, [{ startMinute: 1080, endMinute: 1140 }], 'AAAA2222');
+
+      await updateMe({ timeZone: 'Asia/Kathmandu', keepLocalTimes: true }); // -330
+      await updateMe({ timeZone: 'UTC', keepLocalTimes: true }); // +330
+
+      expect(await storedRanges(membershipId)).toEqual([{ startMinute: 1080, endMinute: 1140 }]);
+    });
+
+    test('switching to a zone with the same offset moves nothing', async () => {
+      const membershipId = await groupWithAvailability(user, [{ startMinute: 750, endMinute: 990 }], 'AAAA2222');
+
+      const res = await updateMe({ timeZone: 'Asia/Calcutta', keepLocalTimes: true });
+
+      expect(res.body.shiftedByMinutes).toBe(0);
+      expect(await storedRanges(membershipId)).toEqual([{ startMinute: 750, endMinute: 990 }]);
+    });
+  });
+
+  test('keepLocalTimes must be a boolean', async () => {
+    const res = await updateMe({ timeZone: 'UTC', keepLocalTimes: 'yes' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('keepLocalTimes must be true or false');
   });
 
   test.each([

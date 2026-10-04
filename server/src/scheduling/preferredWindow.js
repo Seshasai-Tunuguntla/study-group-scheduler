@@ -57,4 +57,25 @@ function preferredWindowSlots({ startMinuteOfDay, endMinuteOfDay, timeZone, at =
   return slots;
 }
 
-module.exports = { preferredWindowSlots, utcOffsetMinutes, parseTimeOfDay };
+// Rounds to the nearest whole number, with exact halves going toward zero: 0.5 -> 0, -0.5 -> 0,
+// 1.5 -> 1, -1.5 -> -1. Unlike Math.round (which sends halves up: -0.5 -> 0 but 0.5 -> 1), this is
+// symmetric: roundHalfTowardZero(-x) === -roundHalfTowardZero(x).
+function roundHalfTowardZero(x) {
+  return Math.sign(x) * Math.ceil(Math.abs(x) - 0.5) || 0; // `|| 0` turns -0 into 0
+}
+
+// How far to move UTC availability so its local clock times stay the same when a user switches
+// from one zone to another: India (+05:30) -> Japan (+09:00) is -210 minutes (18:00 IST is 12:30 UTC,
+// 18:00 JST is 09:00 UTC).
+//
+// Availability lives on 30-minute UTC slots, so the shift is rounded to the nearest half hour.
+// Zones 15 or 45 minutes apart (India <-> Nepal, UTC <-> Nepal) land exactly half way, and those
+// ties round toward zero: the smaller move. Because that rule is symmetric, switching A -> B -> A
+// always puts availability back exactly where it started, and local times are never more than
+// 15 minutes from where they were.
+function localHoursShiftMinutes(fromZone, toZone, at = new Date()) {
+  const exact = utcOffsetMinutes(fromZone, at) - utcOffsetMinutes(toZone, at);
+  return roundHalfTowardZero(exact / 30) * 30;
+}
+
+module.exports = { preferredWindowSlots, utcOffsetMinutes, parseTimeOfDay, localHoursShiftMinutes };
