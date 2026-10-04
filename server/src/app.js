@@ -11,8 +11,9 @@ const app = express();
 
 // Hosted behind a reverse proxy in production; needed so req.ip and the rate limiters see the real client.
 // TODO(deploy): production traffic goes browser -> Vercel rewrite -> Render, two hops. With 1, req.ip
-// may be Vercel's edge IP for everyone, putting all users in one rate-limit bucket. Log req.ip in
-// production, then set this (or the limiters' key function, with a test) to use the real client IP.
+// may be Vercel's edge IP for everyone, putting all users in one bucket for BOTH the auth limiter
+// (login/register) and the join-code limiter. Log req.ip in production, then set this (or the
+// limiters' key function, with a test) so both limiters key on the real client IP.
 app.set('trust proxy', 1);
 
 const allowedOrigins = (process.env.CLIENT_ORIGIN || '')

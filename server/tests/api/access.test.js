@@ -19,6 +19,8 @@ const as = (user) => ({
 // [label, (client, groupId, target) => request]. `target` is a member the request acts on.
 const memberRoutes = [
   ['GET /groups/:id', (c, id) => c.get(`/api/groups/${id}`)],
+  ['GET /groups/:id/availability', (c, id) => c.get(`/api/groups/${id}/availability`)],
+  ['PUT /groups/:id/availability', (c, id) => c.put(`/api/groups/${id}/availability`, { ranges: [] })],
   ['DELETE /groups/:id/members/:userId', (c, id, target) => c.delete(`/api/groups/${id}/members/${target.id}`)],
 ];
 const organizerRoutes = [

@@ -1,5 +1,8 @@
 const { z } = require('zod');
 const { isIanaTimeZone } = require('../utils/timeZone');
+const { MINUTES_PER_WEEK, SLOT_MINUTES, SLOTS_PER_WEEK } = require('../scheduling/week');
+// Called through the module object (not destructured) so tests can stub normalizeRanges.
+const ranges = require('../scheduling/ranges');
 
 // Trim and lowercase *before* the format check: z.email().trim() would validate first and
 // reject "  Ana@Example.com ".
@@ -66,6 +69,46 @@ const updateMemberSchema = z.object({
   required: z.boolean({ message: 'required must be true or false' }),
 });
 
+const minuteOfWeek = (name, max) => {
+  const outOfRange = `${name} must be between 0 and ${max}`;
+  return z
+    .number({ message: `${name} must be a number` })
+    .int(`${name} must be a whole number`)
+    .min(0, outOfRange)
+    .max(max, outOfRange)
+    .multipleOf(SLOT_MINUTES, `${name} must be a multiple of ${SLOT_MINUTES}`);
+};
+
+// UTC minutes since Monday 00:00, end exclusive. An end at or before the start means the range
+// runs past Sunday midnight: { startMinute: 10020, endMinute: 60 } is Sun 23:00 - Mon 01:00 UTC.
+const availabilityRangeSchema = z
+  .object({
+    startMinute: minuteOfWeek('startMinute', MINUTES_PER_WEEK - SLOT_MINUTES),
+    endMinute: minuteOfWeek('endMinute', MINUTES_PER_WEEK),
+  })
+  .refine((range) => range.startMinute !== range.endMinute, 'a range must not be empty');
+
+// Even one-slot ranges can't need more than one per slot of the week.
+const MAX_RANGES_PER_REQUEST = SLOTS_PER_WEEK;
+
+// Validates, then normalizes to the stored form (split at the week boundary, sorted, merged).
+// Overlapping ranges are reported as a normal validation error, so they become a 400.
+const replaceAvailabilitySchema = z
+  .object({
+    ranges: z
+      .array(availabilityRangeSchema, { message: 'ranges must be an array' })
+      .max(MAX_RANGES_PER_REQUEST, `at most ${MAX_RANGES_PER_REQUEST} ranges per request`),
+  })
+  .transform(({ ranges: input }, ctx) => {
+    try {
+      return { ranges: ranges.normalizeRanges(input) };
+    } catch (err) {
+      if (!(err instanceof ranges.RangeOverlapError)) throw err;
+      ctx.issues.push({ code: 'custom', message: err.message, input, path: ['ranges'] });
+      return z.NEVER;
+    }
+  });
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -74,4 +117,6 @@ module.exports = {
   createGroupSchema,
   joinGroupSchema,
   updateMemberSchema,
+  replaceAvailabilitySchema,
+  MAX_RANGES_PER_REQUEST,
 };

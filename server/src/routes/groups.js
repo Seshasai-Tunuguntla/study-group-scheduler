@@ -12,31 +12,13 @@ const {
 const joinCodes = require('../utils/joinCode');
 const { isUniqueViolation } = require('../utils/prismaErrors');
 const { HttpError } = require('../utils/httpError');
+const { memberInclude, memberOrder, toMember, toSession } = require('../serializers');
+const availabilityRoutes = require('./availability');
 
 const router = express.Router();
 router.use(requireAuth);
 
 const MAX_JOIN_CODE_ATTEMPTS = 5;
-
-// Other members see names and roles only: no emails or time zones.
-const memberInclude = { user: { select: { id: true, name: true } } };
-
-function toMember(membership) {
-  return {
-    userId: membership.user.id,
-    name: membership.user.name,
-    role: membership.role,
-    required: membership.required,
-    joinedAt: membership.joinedAt,
-    availabilityUpdatedAt: membership.availabilityUpdatedAt,
-  };
-}
-
-function toSession(session) {
-  if (!session) return null;
-  const { startMinute, durationMinutes, confirmedAt } = session;
-  return { startMinute, durationMinutes, confirmedAt };
-}
 
 // The join code is only shown to the organizer, who decides who gets invited.
 const visibleJoinCode = (group, viewerRole) => (viewerRole === 'ORGANIZER' ? group.joinCode : null);
@@ -46,8 +28,7 @@ async function loadGroupDetails(groupId, viewer) {
     where: { id: groupId },
     include: {
       session: true,
-      // Enum order puts ORGANIZER first, then members in the order they joined.
-      memberships: { include: memberInclude, orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }, { id: 'asc' }] },
+      memberships: { include: memberInclude, orderBy: memberOrder },
     },
   });
 
@@ -174,5 +155,7 @@ router.delete('/:id/members/:userId', requireMembership, async (req, res) => {
 
   res.status(204).end();
 });
+
+router.use('/:id/availability', requireMembership, availabilityRoutes);
 
 module.exports = router;
