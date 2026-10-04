@@ -63,6 +63,7 @@ export const api = {
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
   me: () => request('/auth/me'),
+  updateTimeZone: (timeZone) => request('/auth/me', { method: 'PATCH', body: { timeZone } }),
 
   listGroups: () => request('/groups'),
   createGroup: (name) => request('/groups', { method: 'POST', body: { name } }),

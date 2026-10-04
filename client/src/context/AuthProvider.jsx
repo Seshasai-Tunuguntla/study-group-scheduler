@@ -62,9 +62,15 @@ export function AuthProvider({ children }) {
     setUser(data.user);
   }, []);
 
+  // Every time on screen re-renders in the new zone as soon as `user` updates.
+  const updateTimeZone = useCallback(async (timeZone) => {
+    const data = await api.updateTimeZone(timeZone);
+    setUser(data.user);
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, startupError, retryStartup, login, register, logout }),
-    [user, loading, startupError, retryStartup, login, register, logout]
+    () => ({ user, loading, startupError, retryStartup, login, register, logout, updateTimeZone }),
+    [user, loading, startupError, retryStartup, login, register, logout, updateTimeZone]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

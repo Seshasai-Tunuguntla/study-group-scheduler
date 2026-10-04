@@ -371,12 +371,38 @@ input:focus {
 }
 
 .tz-note {
+  display: grid;
+  gap: 0.5rem;
   font-size: 0.92rem;
   color: var(--ink-2);
 }
 
-.tz-warning {
+.tz-mismatch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  background: var(--amber-tint);
   color: var(--amber-ink);
+}
+
+.tz-mismatch .btn-ghost {
+  border-color: rgba(122, 74, 0, 0.35);
+  background: var(--surface);
+  color: var(--amber-ink);
+}
+
+.tz-switched {
+  padding: 0.55rem 0.8rem;
+  border-radius: 8px;
+  background: var(--teal-tint);
+  color: var(--teal-hover);
+}
+
+.tz-note .flash {
+  margin: 0;
 }
 
 .back-link {

@@ -94,6 +94,7 @@ organizer-only route gets **403**. Errors are always `{ error, details? }`.
 | POST | `/auth/register` | `{ name, email, password, timeZone }` | 201 `{ token, user }` |
 | POST | `/auth/login` | `{ email, password }` | 200 `{ token, user }`; 401 for a wrong email or password (same message) |
 | GET | `/auth/me` | | `{ user }`; 401 if the token is bad or the user is gone |
+| PATCH | `/auth/me` | `{ timeZone }` | `{ user }`. Only the zone can change. Stored availability (UTC) doesn't move; it is just shown in the new zone |
 
 `user` = `{ id, name, email, timeZone, createdAt }`
 

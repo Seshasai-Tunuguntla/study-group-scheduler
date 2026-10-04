@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../prismaClient');
 const { requireAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimit');
-const { registerSchema, loginSchema } = require('../validation/schemas');
+const { registerSchema, loginSchema, updateMeSchema } = require('../validation/schemas');
 const { signToken } = require('../utils/tokens');
 const { HttpError } = require('../utils/httpError');
 
@@ -46,6 +46,19 @@ router.get('/me', requireAuth, async (req, res) => {
   // A well-signed token for a user who no longer exists is still a bad token.
   if (!user) throw new HttpError(401, 'User no longer exists');
 
+  res.json({ user });
+});
+
+// Changes the account's time zone (e.g. after moving, or when the device's zone was wrong at
+// signup). Stored availability is UTC and deliberately doesn't move: the same moments are just
+// shown in the new zone, so nothing changes for the rest of the group.
+router.patch('/me', requireAuth, async (req, res) => {
+  const { timeZone } = updateMeSchema.parse(req.body);
+
+  const { count } = await prisma.user.updateMany({ where: { id: req.user.id }, data: { timeZone } });
+  if (count === 0) throw new HttpError(401, 'User no longer exists');
+
+  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
   res.json({ user });
 });
 

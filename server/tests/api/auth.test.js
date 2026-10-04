@@ -189,3 +189,83 @@ describe('GET /api/auth/me', () => {
     expect(res.body).toEqual({ error: 'User no longer exists' });
   });
 });
+
+describe('PATCH /api/auth/me', () => {
+  let user;
+  let token;
+
+  beforeEach(async () => {
+    ({ user, token } = (await register(ana)).body);
+  });
+
+  const updateMe = (body, authHeader = `Bearer ${token}`) =>
+    request(app).patch('/api/auth/me').set('Authorization', authHeader).send(body);
+
+  test('changes the time zone and returns the updated public user', async () => {
+    const res = await updateMe({ timeZone: 'Europe/London' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ user: { ...user, timeZone: 'Europe/London' } });
+    expect((await me(`Bearer ${token}`)).body.user.timeZone).toBe('Europe/London');
+  });
+
+  test('stores the zone exactly as sent, aliases included', async () => {
+    const res = await updateMe({ timeZone: 'Asia/Calcutta' });
+
+    expect(res.body.user.timeZone).toBe('Asia/Calcutta');
+  });
+
+  test('changes nothing but the time zone, even if other fields are sent', async () => {
+    await updateMe({ timeZone: 'UTC', email: 'mallory@example.com', name: 'Mallory', password: 'hijacked!!' });
+
+    const stored = await prisma.user.findUnique({ where: { id: user.id }, omit: { password: false } });
+    expect(stored).toMatchObject({ email: ana.email, name: ana.name, timeZone: 'UTC' });
+    expect(await bcrypt.compare(ana.password, stored.password)).toBe(true);
+  });
+
+  test("leaves saved availability where it is (it's stored in UTC)", async () => {
+    const group = await prisma.group.create({
+      data: {
+        name: 'Group',
+        joinCode: 'ABCDEFGH',
+        createdById: user.id,
+        memberships: { create: { userId: user.id, role: 'ORGANIZER' } },
+      },
+      include: { memberships: true },
+    });
+    const membershipId = group.memberships[0].id;
+    await prisma.availabilityRange.create({ data: { membershipId, startMinute: 750, endMinute: 990 } });
+
+    await updateMe({ timeZone: 'America/New_York' });
+
+    expect(await prisma.availabilityRange.findMany({ where: { membershipId } })).toEqual([
+      expect.objectContaining({ startMinute: 750, endMinute: 990 }),
+    ]);
+  });
+
+  test.each([
+    ['a missing time zone', {}, 'timeZone is required'],
+    ['an unknown time zone', { timeZone: 'Mars/Olympus' }, 'timeZone must be an IANA time zone such as "Asia/Kolkata"'],
+    ['a UTC offset instead of a zone', { timeZone: '+05:30' }, 'timeZone must be an IANA time zone such as "Asia/Kolkata"'],
+  ])('rejects %s -> 400 and keeps the old zone', async (_label, body, message) => {
+    const res = await updateMe(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe(message);
+    expect((await prisma.user.findUnique({ where: { id: user.id } })).timeZone).toBe('Asia/Kolkata');
+  });
+
+  test('requires a valid token', async () => {
+    expect((await request(app).patch('/api/auth/me').send({ timeZone: 'UTC' })).status).toBe(401);
+    expect((await updateMe({ timeZone: 'UTC' }, 'Bearer not-a-token')).status).toBe(401);
+  });
+
+  test('a valid token for a user who no longer exists -> 401', async () => {
+    await prisma.user.delete({ where: { id: user.id } });
+
+    const res = await updateMe({ timeZone: 'UTC' });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'User no longer exists' });
+  });
+});

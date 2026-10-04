@@ -20,6 +20,12 @@ const emailSchema = z
   .max(254, 'email must be at most 254 characters')
   .pipe(z.email('a valid email is required'));
 
+// Shared by signup and the profile update, so both accept exactly the same zones.
+const timeZoneSchema = z
+  .string({ message: 'timeZone is required' })
+  .trim()
+  .refine(isIanaTimeZone, 'timeZone must be an IANA time zone such as "Asia/Kolkata"');
+
 const registerSchema = z.object({
   name: z
     .string({ message: 'name is required' })
@@ -33,15 +39,17 @@ const registerSchema = z.object({
     // bcrypt only reads the first 72 bytes and silently ignores the rest. Counting bytes, not
     // characters, matters for non-ASCII passwords: one emoji is 2 characters but 4 bytes.
     .refine((password) => Buffer.byteLength(password, 'utf8') <= 72, 'password is too long (max 72 bytes)'),
-  timeZone: z
-    .string({ message: 'timeZone is required' })
-    .trim()
-    .refine(isIanaTimeZone, 'timeZone must be an IANA time zone such as "Asia/Kolkata"'),
+  timeZone: timeZoneSchema,
 });
 
 const loginSchema = z.object({
   email: emailSchema,
   password: z.string({ message: 'password is required' }).min(1, 'password is required'),
+});
+
+// PATCH /auth/me: only the time zone can change. Other fields (email, password) are ignored.
+const updateMeSchema = z.object({
+  timeZone: timeZoneSchema,
 });
 
 // Route params arrive as strings. The upper bound keeps ids inside Postgres INTEGER, so a huge
@@ -170,6 +178,7 @@ const confirmSessionSchema = z.object({
 module.exports = {
   registerSchema,
   loginSchema,
+  updateMeSchema,
   groupParamsSchema,
   memberParamsSchema,
   createGroupSchema,
