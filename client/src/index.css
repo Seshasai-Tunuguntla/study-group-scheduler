@@ -1,0 +1,37 @@
+/* Minimal base styles for the scaffold. The real design tokens arrive in phase 7. */
+:root {
+  --text: #1d2321;
+  --muted: #5d6763;
+  --bg: #f7f8f6;
+  --accent: #2f6f5e;
+  --danger: #b3261e;
+
+  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.scaffold {
+  max-width: 40rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+[data-status='ok'] {
+  color: var(--accent);
+}
+
+[data-status='error'] {
+  color: var(--danger);
+}
