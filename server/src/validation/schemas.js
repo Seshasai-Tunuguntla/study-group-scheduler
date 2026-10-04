@@ -34,4 +34,44 @@ const loginSchema = z.object({
   password: z.string({ message: 'password is required' }).min(1, 'password is required'),
 });
 
-module.exports = { registerSchema, loginSchema };
+// Route params arrive as strings. The upper bound keeps ids inside Postgres INTEGER, so a huge
+// id is a 400 instead of a database overflow error (500).
+const MAX_INT = 2_147_483_647;
+const idParam = (name) => {
+  const message = `${name} must be a positive whole number`;
+  return z.coerce.number({ message }).int(message).positive(message).max(MAX_INT, message);
+};
+
+const groupParamsSchema = z.object({ id: idParam('group id') });
+
+const memberParamsSchema = z.object({ id: idParam('group id'), userId: idParam('userId') });
+
+const createGroupSchema = z.object({
+  name: z
+    .string({ message: 'name is required' })
+    .trim()
+    .min(1, 'name is required')
+    .max(100, 'name must be at most 100 characters'),
+});
+
+// Forgiving about how people type a code they were sent: "abcd-efgh" and "ABCD EFGH" both work.
+const joinGroupSchema = z.object({
+  joinCode: z
+    .string({ message: 'joinCode is required' })
+    .transform((code) => code.replace(/[\s-]/g, '').toUpperCase())
+    .pipe(z.string().length(8, 'joinCode must be 8 characters')),
+});
+
+const updateMemberSchema = z.object({
+  required: z.boolean({ message: 'required must be true or false' }),
+});
+
+module.exports = {
+  registerSchema,
+  loginSchema,
+  groupParamsSchema,
+  memberParamsSchema,
+  createGroupSchema,
+  joinGroupSchema,
+  updateMemberSchema,
+};

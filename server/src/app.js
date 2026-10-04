@@ -5,10 +5,14 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const { HttpError } = require('./utils/httpError');
 
 const authRoutes = require('./routes/auth');
+const groupRoutes = require('./routes/groups');
 
 const app = express();
 
-// Hosted behind one reverse proxy in production; needed so req.ip and the rate limiter see the real client.
+// Hosted behind a reverse proxy in production; needed so req.ip and the rate limiters see the real client.
+// TODO(deploy): production traffic goes browser -> Vercel rewrite -> Render, two hops. With 1, req.ip
+// may be Vercel's edge IP for everyone, putting all users in one rate-limit bucket. Log req.ip in
+// production, then set this (or the limiters' key function, with a test) to use the real client IP.
 app.set('trust proxy', 1);
 
 const allowedOrigins = (process.env.CLIENT_ORIGIN || '')
@@ -31,6 +35,7 @@ app.use(express.json());
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
 app.use('/api/auth', authRoutes);
+app.use('/api/groups', groupRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
