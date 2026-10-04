@@ -1053,20 +1053,187 @@ input:focus {
   opacity: 0.6;
 }
 
-.range-list {
-  display: grid;
-  gap: 0.4rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+/* Availability grid */
+
+.availability-intro h2 {
+  margin-bottom: 0.35rem;
 }
 
-.range-list li {
-  padding: 0.5rem 0.8rem;
-  border-radius: 8px;
-  background: var(--surface);
+.availability-intro {
+  margin-bottom: 1rem;
+}
+
+.availability-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.availability-tools .switch {
+  margin-left: auto;
+}
+
+.availability .hint {
+  margin: -0.4rem 0 0.9rem;
+}
+
+.week-grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
   border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  user-select: none;
+  -webkit-user-select: none;
+  /* Fingers can still scroll the page over the grid; taps toggle cells. */
+  touch-action: manipulation;
+}
+
+/* "Drag to select" on a touch screen: the grid keeps the gesture instead of scrolling. */
+.week-grid-paint {
+  touch-action: none;
+}
+
+.week-grid thead th,
+.week-grid-corner {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.week-grid thead th:first-of-type {
+  border-top-left-radius: 12px;
+}
+
+.week-grid-corner {
+  width: 3.4rem;
+  border-top-left-radius: 12px;
+}
+
+.time-label {
+  padding: 0 0.45rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Half-hour labels stay in the page for screen readers but only hour labels are drawn. */
+.time-label-half {
+  color: transparent;
+}
+
+.cell {
+  height: 1.15rem;
+  border-top: 1px dashed #e3e8ee;
+  border-left: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.hour-start .cell {
+  border-top: 1px solid var(--line);
+}
+
+.cell-free {
+  background: var(--teal);
+  border-top-color: rgba(255, 255, 255, 0.25);
+}
+
+/* While dragging: what will change when the pointer is released. */
+.cell-changing.cell-free {
+  background: #6fb5aa;
+}
+
+.cell-changing:not(.cell-free) {
+  background: repeating-linear-gradient(135deg, var(--teal-tint) 0 4px, #fff 4px 8px);
+}
+
+.cell:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: -3px;
+}
+
+@media (hover: hover) {
+  .week-grid:not(.is-dragging) .cell:hover {
+    background: var(--teal-tint);
+  }
+
+  .week-grid:not(.is-dragging) .cell-free:hover {
+    background: var(--teal-hover);
+  }
+}
+
+.save-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 -4px 14px rgba(28, 42, 67, 0.08);
+}
+
+.save-bar-dirty {
+  border-color: #e5c27a;
+}
+
+.save-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+}
+
+.save-total {
   font-weight: 600;
+}
+
+.save-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-left: auto;
+}
+
+.save-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.pill {
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+}
+
+.pill-unsaved {
+  background: var(--amber-tint);
+  color: var(--amber-ink);
+}
+
+.pill-saved {
+  background: var(--teal-tint);
+  color: var(--teal-hover);
 }
 
 /* Join code key tag, as in the Landlord project */

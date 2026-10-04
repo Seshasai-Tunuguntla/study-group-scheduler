@@ -174,8 +174,8 @@ Attendance is recalculated from current availability on every request.
 | 4 | Groups, memberships, join codes, role/ownership checks + tests | Done |
 | 5 | Availability API with validation and range merging + tests | Done |
 | 6 | Suggestions endpoint + session confirm/get/delete + tests | Done |
-| 7 | Frontend: auth pages, dashboard, group page (+ Members and Suggestions tabs, session card) | Built, in review |
-| 8 | Availability grid with drag-select and time zone conversion | |
+| 7 | Frontend: auth pages, dashboard, group page (+ Members and Suggestions tabs, session card) | Done |
+| 8 | Availability grid with drag-select and time zone conversion (+ change saved time zone) | Built, in review |
 | 9 | Heatmap UI, preferred-hours control on Suggestions | |
 | 10 | Self-resetting demo data + tests | |
 | 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test | |
@@ -193,11 +193,21 @@ Attendance is recalculated from current availability on every request.
 
 ## Notes for later phases
 
-### Phase 8: availability grid
-- Replace the placeholder in `client/src/pages/group/AvailabilityTab.jsx`.
-- Build rows from UTC slots and label them in the account's zone (handles +05:45 zones).
-- Selected local slots -> UTC ranges for `PUT /availability` (the server splits wrap-arounds and merges).
-- Show the "never saved" vs "saved empty" difference, and make an explicit Save with unsaved-changes feedback.
+## Availability grid decisions (phase 8)
+
+- **Grid logic:** pure functions in `client/src/availability/grid.js`, tested with Vitest.
+  - The selection is a Set of **UTC slots**; `buildWeekGrid(timeZone)` only decides where each slot is drawn (local day column, local time row).
+  - Every slot maps to exactly one cell in every zone. Rows are labelled :15/:45 in +05:45 zones, and local Monday 00:00 can be UTC Sunday.
+- **Pointer events** handle mouse, pen and touch in one code path (`AvailabilityGrid.jsx`).
+  - The first cell pressed decides add or remove (`dragMode`), and a drag paints the rectangle between the first and current cell.
+  - **Touch:** the page scrolls normally (`touch-action: manipulation`), and a tap toggles a cell (a finger that moved over 10px was scrolling). A "Drag to select" switch, shown on touch screens only, sets `touch-action: none` so a finger paints like a mouse.
+  - **Keyboard:** arrows move between cells; Space/Enter toggles.
+- **Saving:**
+  - An explicit Save, with "Not saved yet" / "Saved" / "Last saved …" and Discard.
+  - Leaving with unsaved changes asks first: `useBlocker` for in-app navigation (this needed the switch to a data router, `src/router.jsx`), `beforeunload` for reloading or closing the tab.
+  - "Copy Monday to weekdays" and "Clear" edit the draft only, until Save.
+- **Changing the saved time zone:** `PATCH /auth/me { timeZone }`, offered by the "Use this device's time zone" button in the mismatch notice. Saved availability stays at the same UTC moments and is just re-labelled, so the rest of the group sees no change. The UI says so after switching.
+- **Known gap:** logging out with unsaved grid changes discards them without asking (the editor unmounts before the blocker can run).
 
 ### Phase 9: heatmap and preferred hours
 - Replace `HeatmapTab.jsx`.
@@ -214,6 +224,9 @@ Attendance is recalculated from current availability on every request.
   - the rate limiter's in-memory store (resets on restart, single instance only)
   - `npm audit` reports a high in the Prisma CLI's `deepmerge-ts`: not reachable at runtime, and the suggested fix downgrades Prisma
   - JWT in localStorage
+
+### Phase 11/12: end-to-end smoke test
+- Add one Playwright end-to-end smoke test: log in -> open a group -> see suggestions. Run it in CI against a seeded test database and both dev servers (or the built client).
 
 ### Phase 12: deploy
 - Requests go browser -> Vercel rewrite -> Render. With `trust proxy = 1`, `req.ip` may be Vercel's edge IP for everyone, putting all users in one bucket for **both** the auth limiter and the join-code limiter.
