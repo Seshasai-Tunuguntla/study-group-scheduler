@@ -6,19 +6,30 @@ import { useLoad } from '../../hooks/useLoad';
 import Loading from '../../components/Loading';
 import ErrorState from '../../components/ErrorState';
 import JoinCode from '../../components/JoinCode';
-import { formatDuration, formatWindow } from '../../time/week';
+import {
+  crossesMidnight,
+  DEFAULT_PREFERRED,
+  DURATIONS,
+  hasPreferred,
+  minuteOfDay,
+  suggestionParams,
+  TIME_OPTIONS,
+  withPreferred,
+} from '../../suggestions/settings';
+import { formatDuration, formatTime, formatWindow } from '../../time/week';
 import { names } from './names';
 
-const DURATIONS = [30, 60, 90, 120, 150, 180, 210, 240];
 const SHORT_LABELS = { 30: '30m', 60: '1h', 90: '1.5h', 120: '2h', 150: '2.5h', 180: '3h', 210: '3.5h', 240: '4h' };
 
 export default function SuggestionsTab() {
-  const { group } = useOutletContext();
+  const { group, suggestionSettings: settings, setSuggestionSettings: setSettings } = useOutletContext();
   const { availabilityVersion } = useAuth();
-  const [duration, setDuration] = useState(60);
+  const { duration } = settings;
+  const setDuration = (minutes) => setSettings({ ...settings, duration: minutes });
+  const params = suggestionParams(settings);
   const { data, error, loading, reload } = useLoad(
-    () => api.getSuggestions(group.id, { duration }),
-    `${duration}:${availabilityVersion}`
+    () => api.getSuggestions(group.id, params),
+    `${JSON.stringify(params)}:${availabilityVersion}`
   );
 
   let content;
@@ -58,6 +69,7 @@ export default function SuggestionsTab() {
           ))}
         </div>
       </div>
+      <PreferredHours settings={settings} onChange={setSettings} />
       {error && data !== undefined && (
         <ErrorState error={error} onRetry={reload} title="Couldn't refresh suggestions" />
       )}
@@ -66,6 +78,72 @@ export default function SuggestionsTab() {
         {content}
       </div>
     </section>
+  );
+}
+
+// Preferred hours: the same local hours every day. Best times inside them rank higher, but they
+// never beat a time more people can make (attendance is ranked first). Remembered per group in this
+// browser, along with the session length.
+function PreferredHours({ settings, onChange }) {
+  const { user } = useAuth();
+  const label = (time) => formatTime(minuteOfDay(time));
+
+  if (!hasPreferred(settings)) {
+    return (
+      <div className="toolbar">
+        <span className="toolbar-label">Preferred hours</span>
+        <button type="button" className="btn-quiet" onClick={() => onChange({ ...settings, ...DEFAULT_PREFERRED })}>
+          Add preferred hours
+        </button>
+        <span className="muted">Optional: rank times inside them higher.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="toolbar preferred">
+      <span className="toolbar-label" id="preferred-label">
+        Preferred hours
+      </span>
+      <span className="preferred-range" role="group" aria-labelledby="preferred-label">
+        <label>
+          <span className="visually-hidden">From</span>
+          <select
+            value={settings.preferredStart}
+            onChange={(e) => onChange(withPreferred(settings, 'preferredStart', e.target.value))}
+          >
+            {TIME_OPTIONS.map((time) => (
+              <option key={time} value={time}>
+                {label(time)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span aria-hidden="true">to</span>
+        <label>
+          <span className="visually-hidden">Until</span>
+          <select
+            value={settings.preferredEnd}
+            onChange={(e) => onChange(withPreferred(settings, 'preferredEnd', e.target.value))}
+          >
+            {TIME_OPTIONS.map((time) => (
+              <option key={time} value={time}>
+                {label(time)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {crossesMidnight(settings) && <span className="chip">past midnight</span>}
+      </span>
+      <span className="muted">Every day, in {user.timeZone}.</span>
+      <button
+        type="button"
+        className="btn-link"
+        onClick={() => onChange({ ...settings, preferredStart: null, preferredEnd: null })}
+      >
+        Remove
+      </button>
+    </div>
   );
 }
 
@@ -120,6 +198,13 @@ function SuggestionList({ data }) {
                   ? `Everyone who replied can come (${responded})`
                   : `${suggestion.attendees.length} of ${responded} can come`}
               </p>
+              {data.preferredWindow && suggestion.preferredMinutes > 0 && (
+                <p className="pick-preferred">
+                  {suggestion.preferredMinutes >= suggestion.durationMinutes
+                    ? 'Inside your preferred hours'
+                    : `${formatDuration(suggestion.preferredMinutes)} inside your preferred hours`}
+                </p>
+              )}
               <p className="people">
                 <span className="people-label">Can come:</span> {names(suggestion.attendees)}
               </p>

@@ -990,6 +990,243 @@ input:focus {
   margin-top: 0.35rem;
 }
 
+.pick-preferred {
+  font-size: 0.88rem;
+  color: var(--color-accent);
+}
+
+select {
+  font: inherit;
+  color: var(--color-text);
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-input-line);
+  border-radius: var(--radius-s);
+  background: var(--color-raised);
+}
+
+.preferred-range {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Group heatmap: who's free, the visual hero. */
+
+.heat-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 2rem;
+  margin-bottom: 0.9rem;
+}
+
+.heat-head h2 {
+  margin-bottom: 0.25rem;
+}
+
+.heat-head p {
+  max-width: 60ch;
+}
+
+.heat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.heat-legend-scale {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+}
+
+.heat-legend-scale > span:first-child {
+  margin-right: 0.35rem;
+}
+
+.heat-swatch {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7rem;
+  height: 1.35rem;
+  padding: 0 0.3rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.heat-swatch-session {
+  min-width: 1.4rem;
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.heat-wrap {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-l);
+  background: var(--color-surface);
+}
+
+.heat-grid {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  table-layout: fixed;
+}
+
+.heat-grid th {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.heat-grid th.time-label-half {
+  color: transparent;
+}
+
+.heat-corner {
+  width: 3rem;
+}
+
+.heat-sideways thead th {
+  text-align: left;
+  padding-bottom: 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.heat-sideways tbody th {
+  text-align: left;
+  padding-right: 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.heat-upright thead th {
+  position: sticky;
+  top: 3.25rem; /* below the sticky top bar */
+  z-index: 1;
+  padding: 0.35rem 0;
+  background: var(--color-surface);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.heat-cell {
+  position: relative;
+  padding: 0;
+  border-radius: 3px;
+  background: var(--color-sunken);
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.heat-sideways .heat-cell {
+  height: 2.4rem;
+}
+
+.heat-upright .heat-cell {
+  height: 1.35rem;
+}
+
+.heat-upright .hour-start .heat-cell {
+  box-shadow: inset 0 1px 0 var(--color-line);
+}
+
+/* The steps get brighter with the count; light text on the dim ones, dark on the bright ones. */
+.heat-1 { background: var(--heat-1); color: var(--color-text); }
+.heat-2 { background: var(--heat-2); color: var(--color-text); }
+.heat-3 { background: var(--heat-3); color: var(--color-on-accent); }
+.heat-4 { background: var(--heat-4); color: var(--color-on-accent); }
+.heat-0 { background: var(--color-sunken); color: var(--color-text-muted); }
+
+.heat-cell.heat-session {
+  box-shadow: inset 0 0 0 2px var(--color-text);
+}
+
+.heat-cell.heat-pinned,
+.heat-cell:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+.heat-rank {
+  position: absolute;
+  top: 0.12rem;
+  left: 0.12rem;
+  display: grid;
+  place-items: center;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.heat-cell:has(.heat-rank) .heat-count {
+  margin-left: 0.7rem;
+}
+
+.heat-rank-legend {
+  position: static;
+  display: inline-grid;
+  vertical-align: middle;
+}
+
+@media (hover: hover) {
+  .heat-cell:hover {
+    outline: 2px solid var(--color-text-muted);
+    outline-offset: 1px;
+  }
+}
+
+/* Sticks to the bottom of the screen, so on a phone the answer to a tap is visible however far
+   down the tall upright grid the tapped half hour is. */
+.heat-inspector {
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+  min-height: 2.9rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  box-shadow: var(--shadow-raised);
+}
+
+.heat-inspector strong {
+  font-family: var(--font-display);
+}
+
+.heat-inspector-count {
+  font-weight: 700;
+  color: var(--color-accent);
+}
+
 /* Members */
 
 .invite {

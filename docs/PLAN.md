@@ -177,7 +177,7 @@ Attendance is recalculated from current availability on every request.
 | 7 | Frontend: auth pages, dashboard, group page (+ Members and Suggestions tabs, session card) | Done |
 | 8 | Availability grid with drag-select and time zone conversion (+ change saved time zone) | Done |
 | — | Visual redesign: "Focus" (see Design below) | Done |
-| 9 | Heatmap UI, preferred-hours control on Suggestions | In progress |
+| 9 | Heatmap UI, preferred-hours control on Suggestions | Built, in review |
 | 10 | Self-resetting demo data + tests | |
 | 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test | |
 | 12 | Deployment config | |
@@ -238,9 +238,19 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - The response's `shiftedByMinutes` bumps `availabilityVersion` on the client, so the grid, suggestions and attendance reload. Unsaved grid edits are confirmed before they're dropped.
 - **Logging out** goes through a `/logout` route, so the grid's leave warning covers it too.
 
-### Phase 9: heatmap and preferred hours
-- Replace `HeatmapTab.jsx`.
-- Add `preferredStart`/`preferredEnd` controls to the Suggestions tab.
+## Heatmap and preferred hours decisions (phase 9)
+
+- **Heatmap layout:** `HeatGrid.jsx` draws one cell per UTC slot, laid out and labelled in the viewer's zone, like the availability grid.
+  - At 900 px and up it runs sideways (days down, 48 half hours across): the Focus hero, the whole week at a glance.
+  - Narrower screens get the upright layout (days across). `useMediaQuery` picks the layout.
+- **Not colour alone:** every cell prints its free count, and the steps (`heatLevel`) get brighter monotonically, ending at "everyone who replied". The scale is one amber hue, dim to bright, so it reads without telling hues apart (colour-blind friendly). The legend lists which counts each step means (`legendSteps`).
+- **Who is counted:** counts are out of the members who have saved their week ("Counts are out of the 3 members who have filled in their week"). Never-saved members are listed as "Not counted yet" or "Hasn't replied" and never lower a count.
+- **Who is free:** the line under the grid answers mouse hover, tap, click and keyboard focus with "Wednesday 18:30 – 19:00: 3 of 3 free. Free: …, Not free: …, Hasn't replied: …". Names only. The latest interaction wins.
+  - The line is sticky at the bottom of the screen, so on a phone the answer is visible wherever the tapped cell is.
+  - Every cell also has a full `aria-label`, and the arrow keys move in the direction the grid is laid out.
+- **Marks:** the confirmed session is outlined, and the best times show their rank (1-3) on their first half hour. The best times come from the same settings as the Suggestions tab.
+- **Preferred hours:** "From" and "Until" selects in the account's zone, the same hours every day. An end at or before the start crosses midnight and gets a "past midnight" chip. Moving one end onto the other pushes the other end an hour, so the window can't become empty. Best times inside the hours are labelled "Inside your preferred hours".
+- **Remembered per user and group in this browser (localStorage), not on the server:** session length and preferred hours are a personal view setting for exploring best times; other members never see them, and they change no shared data. The trade-off is that they don't follow you to another device. Reads and writes are wrapped so blocked storage just means "not remembered", and stored values are validated before use (`client/src/suggestions/settings.js`).
 
 ### Phase 10: demo
 - Demo accounts can't join other groups, and nobody can join the demo group. Same pattern as the Landlord project.

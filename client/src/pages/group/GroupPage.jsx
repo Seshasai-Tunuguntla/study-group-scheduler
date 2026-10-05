@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet, useParams } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
 import { useLoad } from '../../hooks/useLoad';
+import { useSuggestionSettings } from '../../hooks/useSuggestionSettings';
 import Loading from '../../components/Loading';
 import ErrorState from '../../components/ErrorState';
 import TimeZoneNote from '../../components/TimeZoneNote';
@@ -29,6 +30,8 @@ function GroupPage({ groupId }) {
   const { user, availabilityVersion } = useAuth();
   const groupLoad = useLoad(() => api.getGroup(groupId), groupId);
   const sessionLoad = useLoad(() => api.getSession(groupId), `${groupId}:${availabilityVersion}`);
+  // Session length and preferred hours, shared by the Suggestions and Heatmap tabs.
+  const [suggestionSettings, setSuggestionSettings] = useSuggestionSettings(user.id, groupId);
   const group = groupLoad.data?.group;
 
   if (!group) {
@@ -88,6 +91,8 @@ function GroupPage({ groupId }) {
             reloadGroup: groupLoad.reload,
             session: sessionLoad.data?.session ?? null,
             reloadSession: sessionLoad.reload,
+            suggestionSettings,
+            setSuggestionSettings,
           }}
         />
       </div>
