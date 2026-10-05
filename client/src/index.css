@@ -1155,7 +1155,8 @@ select {
 .heat-4 { background: var(--heat-4); color: var(--color-on-accent); }
 .heat-0 { background: var(--color-sunken); color: var(--color-text-muted); }
 
-.heat-cell.heat-session {
+/* As specific as the hour divider above (and later), so whole-hour session cells keep the outline. */
+.heat-grid .heat-cell.heat-session {
   box-shadow: inset 0 0 0 2px var(--color-text);
 }
 
