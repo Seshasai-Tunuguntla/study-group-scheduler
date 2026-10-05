@@ -9,9 +9,7 @@ for (const name of ['DATABASE_URL', 'JWT_SECRET']) {
 }
 
 const app = require('./app');
+const prisma = require('./prismaClient');
+const { start } = require('./startup');
 
-const PORT = process.env.PORT || 4100;
-
-app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
-});
+start({ app, prisma, port: process.env.PORT || 4100 });

@@ -92,7 +92,7 @@ organizer-only route gets **403**. Errors are always `{ error, details? }`.
 | Method | Path | Body | Response |
 |---|---|---|---|
 | POST | `/auth/register` | `{ name, email, password, timeZone }` | 201 `{ token, user }` |
-| POST | `/auth/login` | `{ email, password }` | 200 `{ token, user }`; 401 for a wrong email or password (same message) |
+| POST | `/auth/login` | `{ email, password }` | 200 `{ token, user }`; 401 for a wrong email or password (same message). A demo login may first reset the demo (see phase 10) |
 | GET | `/auth/me` | | `{ user }`; 401 if the token is bad or the user is gone |
 | PATCH | `/auth/me` | `{ timeZone, keepLocalTimes? }` | `{ user, shiftedByMinutes }`. Only the zone can change. By default stored availability (UTC) doesn't move. With `keepLocalTimes: true` it's shifted to keep the same local clock times |
 
@@ -104,7 +104,7 @@ organizer-only route gets **403**. Errors are always `{ error, details? }`.
 | POST | `/groups` `{ name }` | anyone | 201 `{ group }` (caller is organizer) |
 | GET | `/groups` | anyone | `{ groups: [{ id, name, myRole, required, availabilityUpdatedAt, memberCount, joinCode, session }] }` |
 | GET | `/groups/:id` | member | `{ group: { id, name, createdAt, joinCode, myRole, members, session } }` |
-| POST | `/groups/join` `{ joinCode }` | anyone | 201 `{ group }`; 404 unknown code; 409 already a member |
+| POST | `/groups/join` `{ joinCode }` | anyone | 201 `{ group }`; 404 unknown code; 409 already a member; 403 for a demo account, or a code of a group a demo account created |
 | PATCH | `/groups/:id/members/:userId` `{ required }` | organizer | `{ member }` |
 | DELETE | `/groups/:id/members/:userId` | organizer, or self to leave | 204; 409 if the organizer targets themselves |
 
@@ -156,7 +156,7 @@ Attendance is recalculated from current availability on every request.
 
 ## Frontend pages
 
-- `/login`, `/register`, with one-click "Try the demo" buttons (as in the Landlord project)
+- `/login`, `/register`, with one-click "Try as organizer" / "Try as member" demo buttons (as in the Landlord project)
 - `/dashboard`: my groups, my confirmed sessions in local time, create/join group
 - `/groups/:id`: tabs for **My availability** (drag-select grid), **Group heatmap**, **Suggestions** (duration picker, top 3 cards with attendees/missing, organizer "Confirm"), **Members** (organizer can toggle required / remove)
 - The grid supports mouse drag to select and deselect, and works on mobile (tap to toggle is fine)
@@ -177,9 +177,9 @@ Attendance is recalculated from current availability on every request.
 | 7 | Frontend: auth pages, dashboard, group page (+ Members and Suggestions tabs, session card) | Done |
 | 8 | Availability grid with drag-select and time zone conversion (+ change saved time zone) | Done |
 | — | Visual redesign: "Focus" (see Design below) | Done |
-| 9 | Heatmap UI, preferred-hours control on Suggestions | Built, in review |
-| 10 | Self-resetting demo data + tests | |
-| 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test | |
+| 9 | Heatmap UI, preferred-hours control on Suggestions | Done |
+| 10 | Self-resetting demo data + tests | Built, in review |
+| 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test; dashboard mini heatmap | |
 | 12 | Deployment config | |
 
 ## Frontend decisions (phase 7)
@@ -212,10 +212,8 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - A sticky 52 px top bar.
   - The dashboard has a "Next session" bar and one row per group.
   - The group page shows "3 of 4 replied. Waiting on Cal.", a session card with an amber edge, tabs as one segmented control, and suggestions as side-by-side cards.
-  - On phones the login form comes before the pitch.
-- **Left for later**, because each needs new behaviour or data, not just styling: a group switcher in the top bar, and a mini week heatmap per group on the dashboard (it needs a heat summary in `GET /groups`).
-
-## Notes for later phases
+  - The login page reads: what the app does, the demo buttons, the form, then a glimpse of the heatmap. Wide screens put the form beside the rest.
+- **Left for later**, because each needs new behaviour or data, not just styling: a mini week heatmap per group on the dashboard (phase 11, needs a heat summary in `GET /groups`) and a group switcher in the top bar (optional).
 
 ## Availability grid decisions (phase 8)
 
@@ -251,13 +249,39 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
 - **Marks:** the confirmed session is outlined, and the best times show their rank (1-3) on their first half hour. The best times come from the same settings as the Suggestions tab.
 - **Preferred hours:** "From" and "Until" selects in the account's zone, the same hours every day. An end at or before the start crosses midnight and gets a "past midnight" chip. Moving one end onto the other pushes the other end an hour, so the window can't become empty. Best times inside the hours are labelled "Inside your preferred hours".
 - **Remembered per user and group in this browser (localStorage), not on the server:** session length and preferred hours are a personal view setting for exploring best times; other members never see them, and they change no shared data. The trade-off is that they don't follow you to another device. Reads and writes are wrapped so blocked storage just means "not remembered", and stored values are validated before use (`client/src/suggestions/settings.js`).
+- **Why a bright half hour isn't a best time:** the "who's free" line adds "Not suggested: Ben is required." when a required member who replied isn't free (added in phase 10, where the demo makes this case visible).
 
-### Phase 10: demo
-- Demo accounts can't join other groups, and nobody can join the demo group. Same pattern as the Landlord project.
-- Add the one-click "Try the demo" buttons to `client/src/components/AuthLayout.jsx` (left out in phase 7 because the accounts didn't exist yet).
+## Demo decisions (phase 10)
+
+- **One click:** "Try as organizer" (Priya, Asia/Kolkata) and "Try as member" (Sam, Europe/London) on the login and register pages log in with a public password (`password123`) and open the dashboard.
+- **The data shows the app's strengths** (`server/src/demo/demo.js`):
+  - "Algorithms study group" has 6 members in India, London and New York, so the two demo accounts see the same session at different local times.
+  - Cal (required) never saved, so "Waiting on Cal", "Not counted yet" and "may change" appear.
+  - Ben (required, New York) isn't free on Thursday, when 4 of 5 are. The best times are 3-person slots that include him; making him optional on the Members tab brings Thursday to the top.
+  - The top suggestion, Tuesday 13:30 UTC (19:00 in India), is already the confirmed weekly session, so the dashboard isn't empty.
+  - "Physics lab group", where only Priya has replied, shows the "waiting for responses" state and Sam's "Fill in your week" nudge.
+  - The other members' passwords are random and never kept, so only the two demo accounts can log in.
+- **Reset:** `resetDemoData` rebuilds everything in one transaction, keeping the rows that pages and tokens point at:
+  - The demo users are upserted: name, time zone and password restored, ids kept, so a logged-in visitor stays logged in.
+  - Groups visitors created are deleted.
+  - The fixture groups are found by `Group.demoKey` (null on every real group) and keep their ids and join codes. Only their contents are rebuilt: memberships (restoring removed members and required flags), availability and the session. A visitor looking at a demo group during a reset sees fresh data, not "Group not found".
+  - It runs when the server starts, and on a successful demo login when the last reset is 30+ minutes old, so two visitors exploring at the same time don't wipe each other's work. `npm run demo:reset` runs it by hand.
+  - A failed reset at start is logged and the API still serves real users.
+  - Overlapping resets in one process share one rebuild, and a Postgres advisory lock makes resets in different processes run one after another.
+- **A closed world:** demo accounts can't join any group (403), and nobody can join a group a demo account created (403). So a reset can never touch a real user's data, and a visitor can't use the demo to reach real groups.
+- **Tests** (`server/tests/api/demo.test.js`) cover the data's story, the reset on start (and a failed one), the 30-minute window both ways, that a wrong password or a real login never resets, every kind of visitor change being restored, user and group ids surviving a reset, concurrent resets, real users' data being untouched, and both join blocks. Each protection was also broken on purpose to check a test fails.
+
+## Notes for later phases
+
+### Phase 11: dashboard mini heatmap (firm)
+- Each group row on the dashboard gets a small week heatmap, so the busiest times are visible without opening the group.
+- **API addition:** `GET /groups` gains `heat: { respondedCount, freeCounts }` per group, where `freeCounts` has 336 numbers (how many members who have saved are free in each UTC slot). Load every group's ranges in one query, not one per group, and never count never-saved members. The response stays counts only: no names or ids.
+- **Client:** draw it with the same `buildWeekGrid` and `heatLevel` steps as the group heatmap, in the viewer's zone. Give it a text alternative, such as "Busiest: Thursday 19:30, 4 of 5 free".
+- **Tests:** the counts, never-saved members not counted, and the summary only for the caller's own groups.
 
 ### Phase 11: optional polish
 - **Light theme from the same tokens:** add a second set of values for the `:root` tokens (under `@media (prefers-color-scheme: light)` plus a manual toggle), checking AA contrast again for every pair. No component CSS should need to change; if one does, that's a missing token.
+- **Group switcher** in the top bar.
 
 ### Phase 11: README
 - **Design decisions:** prefix sums; non-member 404; organizer-only join code (deliberate); "never saved" vs "saved empty"; update-first transaction ordering (a test caught the race); CHECK constraints in the init migration; password hashes omitted by default.
@@ -266,6 +290,8 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - the rate limiter's in-memory store (resets on restart, single instance only)
   - `npm audit` reports a high in the Prisma CLI's `deepmerge-ts`: not reachable at runtime, and the suggested fix downgrades Prisma
   - JWT in localStorage
+  - the demo's password is public, and a visitor's changes last until the next demo login 30+ minutes later (see phase 10)
+- **Times in the README:** never write a fixed local time for London or New York (e.g. "14:30"): it moves with daylight saving. Give the UTC time, India's time (no DST), or say "the same moment in each member's zone".
 
 ### Phase 11/12: end-to-end smoke test
 - Add one Playwright end-to-end smoke test: log in -> open a group -> see suggestions. Run it in CI against a seeded test database and both dev servers (or the built client).

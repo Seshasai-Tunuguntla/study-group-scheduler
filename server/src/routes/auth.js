@@ -8,6 +8,7 @@ const { signToken } = require('../utils/tokens');
 const { HttpError } = require('../utils/httpError');
 const { localHoursShiftMinutes } = require('../scheduling/preferredWindow');
 const { shiftRanges } = require('../scheduling/ranges');
+const { isDemoEmail, resetDemoDataIfStale } = require('../demo/demo');
 
 const router = express.Router();
 
@@ -37,6 +38,14 @@ router.post('/login', authLimiter, async (req, res) => {
   const passwordMatches = await bcrypt.compare(password, user?.password ?? DUMMY_HASH);
   if (!user || !passwordMatches) {
     throw new HttpError(401, 'Invalid email or password');
+  }
+
+  if (isDemoEmail(email)) {
+    // The previous visitor may have changed things. The user's id survives a reset, but their
+    // time zone may not, so the response reads the account again.
+    await resetDemoDataIfStale(prisma);
+    const fresh = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    return res.json({ token: signToken(fresh.id), user: fresh });
   }
 
   const { password: _hash, ...publicUser } = user;

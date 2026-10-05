@@ -64,10 +64,19 @@ test('pickMarks puts each rank on its first slot and remembers which slots each 
 })
 
 test('slotPeople splits the members who replied into free and not free, keeping their order', () => {
-  const replied = [{ userId: 1, name: 'Olivia' }, { userId: 2, name: 'Ana' }, { userId: 3, name: 'Ben' }]
+  const olivia = { userId: 1, name: 'Olivia', required: true }
+  const ana = { userId: 2, name: 'Ana', required: false }
+  const ben = { userId: 3, name: 'Ben', required: true }
 
-  expect(slotPeople([3, 1], replied)).toEqual({
-    free: [{ userId: 1, name: 'Olivia' }, { userId: 3, name: 'Ben' }],
-    notFree: [{ userId: 2, name: 'Ana' }],
-  })
+  expect(slotPeople([3, 1], [olivia, ana, ben])).toEqual({ free: [olivia, ben], notFree: [ana], blockedBy: [] })
+})
+
+test('slotPeople lists the required members who are not free as blocking the half hour', () => {
+  const olivia = { userId: 1, name: 'Olivia', required: true }
+  const ana = { userId: 2, name: 'Ana', required: false }
+  const ben = { userId: 3, name: 'Ben', required: true }
+  const cal = { userId: 4, name: 'Cal', required: true }
+
+  // Ana is optional, so only Ben and Cal block it.
+  expect(slotPeople([1], [olivia, ana, ben, cal]).blockedBy).toEqual([ben, cal])
 })

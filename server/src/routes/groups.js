@@ -13,6 +13,7 @@ const joinCodes = require('../utils/joinCode');
 const { isUniqueViolation } = require('../utils/prismaErrors');
 const { HttpError } = require('../utils/httpError');
 const { memberInclude, memberOrder, toMember, toSession } = require('../serializers');
+const { isDemoEmail } = require('../demo/demo');
 const availabilityRoutes = require('./availability');
 const suggestionRoutes = require('./suggestions');
 const sessionRoutes = require('./session');
@@ -98,11 +99,25 @@ router.get('/', async (req, res) => {
   });
 });
 
+// The demo is a closed world: its accounts stay in demo groups and nobody else gets in, so a demo
+// reset (which deletes and rebuilds demo groups) can never touch a real user's data.
 router.post('/join', joinLimiter, async (req, res) => {
   const { joinCode } = joinGroupSchema.parse(req.body);
 
-  const group = await prisma.group.findUnique({ where: { joinCode } });
+  const me = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+  if (!me) throw new HttpError(401, 'User no longer exists');
+  if (isDemoEmail(me.email)) {
+    throw new HttpError(403, "Demo accounts can't join other groups. Create your own account to try joining one.");
+  }
+
+  const group = await prisma.group.findUnique({
+    where: { joinCode },
+    include: { createdBy: { select: { email: true } } },
+  });
   if (!group) throw new HttpError(404, 'No group has that join code');
+  if (isDemoEmail(group.createdBy.email)) {
+    throw new HttpError(403, 'That join code belongs to the demo, which nobody can join. Create your own group to try inviting people.');
+  }
 
   let membership;
   try {

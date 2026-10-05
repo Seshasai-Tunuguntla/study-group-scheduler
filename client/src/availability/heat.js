@@ -50,8 +50,11 @@ export function pickMarks(suggestions) {
 // Who is free in one slot, among the members who have replied, in the members' order.
 export function slotPeople(freeIds, respondedMembers) {
   const free = new Set(freeIds);
+  const notFree = respondedMembers.filter((member) => !free.has(member.userId));
   return {
     free: respondedMembers.filter((member) => free.has(member.userId)),
-    notFree: respondedMembers.filter((member) => !free.has(member.userId)),
+    notFree,
+    // Required members who aren't free: while there are any, this half hour is never suggested.
+    blockedBy: notFree.filter((member) => member.required),
   };
 }

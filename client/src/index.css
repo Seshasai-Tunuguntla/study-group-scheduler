@@ -559,34 +559,48 @@ input:focus {
   margin: 0;
 }
 
-/* Auth: a short pitch with a glimpse of the heatmap, and the form. */
+/* Auth: what the app does, the one-click demo, the form, then a glimpse of the heatmap.
+   Narrow screens stack them in that order, so a first-time visitor reaches the demo before
+   scrolling and the form is right below it. Wide screens put the form beside the rest. */
 
 .auth {
   display: grid;
-  gap: 2rem;
-  align-items: center;
+  gap: 1.5rem;
   max-width: 1000px;
-  margin: 1.5rem auto 0;
+  margin: 0 auto;
 }
 
 @media (min-width: 860px) {
   .auth {
     grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-areas:
+      'intro panel'
+      'demo panel'
+      'more panel';
+    gap: 1.4rem 2.5rem;
+    margin-top: 1.5rem;
   }
-}
 
-/* On narrow screens the form comes first: people open this page to log in. */
-@media (max-width: 859px) {
-  .auth {
-    margin-top: 0;
+  .auth-intro {
+    grid-area: intro;
+  }
+
+  .auth-demo {
+    grid-area: demo;
+  }
+
+  .auth-more {
+    grid-area: more;
   }
 
   .auth-panel {
-    order: -1;
+    grid-area: panel;
+    align-self: center;
   }
 }
 
-.auth-pitch {
+.auth-intro,
+.auth-more {
   display: grid;
   gap: 1rem;
 }
@@ -598,10 +612,39 @@ input:focus {
   letter-spacing: -0.02em;
 }
 
-.auth-pitch > p {
+.auth-intro > p {
   max-width: 46ch;
   font-size: 1.05rem;
   color: var(--color-text-muted);
+}
+
+.auth-demo {
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-l);
+  background: var(--color-surface);
+}
+
+.auth-demo-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.auth-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.auth-demo-note {
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.auth-demo .flash {
+  margin: 0;
 }
 
 .auth-points {

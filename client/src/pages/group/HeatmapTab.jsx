@@ -150,7 +150,7 @@ function Inspector({ slot, slots, responded, waiting, when, sessionSlots, pickAt
       </p>
     );
   }
-  const { free, notFree } = slotPeople(slots[slot], responded);
+  const { free, notFree, blockedBy } = slotPeople(slots[slot], responded);
   return (
     <p className="heat-inspector" aria-live="polite">
       <strong>{when(slot)}</strong>
@@ -159,6 +159,12 @@ function Inspector({ slot, slots, responded, waiting, when, sessionSlots, pickAt
       </span>
       {free.length > 0 && <span>Free: {names(free)}</span>}
       {notFree.length > 0 && <span className="muted">Not free: {names(notFree)}</span>}
+      {/* Explains a bright half hour with no best-time number: someone who has to be there can't. */}
+      {free.length > 0 && blockedBy.length > 0 && (
+        <span className="muted">
+          Not suggested: {names(blockedBy)} {blockedBy.length === 1 ? 'is' : 'are'} required.
+        </span>
+      )}
       {waiting.length > 0 && <span className="muted">Hasn't replied: {names(waiting)}</span>}
       {sessionSlots.has(slot) && <span className="chip chip-accent">Weekly session</span>}
       {pickAt.has(slot) && <span className="chip">Best time {pickAt.get(slot)}</span>}

@@ -12,7 +12,8 @@
     "lint": "oxlint",
     "pretest": "node scripts/migrateTestDb.js",
     "test": "jest --runInBand",
-    "test:unit": "jest tests/unit"
+    "test:unit": "jest tests/unit",
+    "demo:reset": "node scripts/resetDemo.js"
   },
   "engines": {
     "node": ">=22"

@@ -39,6 +39,10 @@ model Group {
   createdById Int
   createdBy   User @relation("GroupCreator", fields: [createdById], references: [id])
 
+  // Set only on the public demo's groups (src/demo/demo.js), so a demo reset finds the same rows
+  // again and keeps their ids. Null for every real group.
+  demoKey String? @unique
+
   memberships Membership[]
   session     Session?
 }
