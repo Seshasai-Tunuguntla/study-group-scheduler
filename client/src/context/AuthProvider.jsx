@@ -41,7 +41,17 @@ export function AuthProvider({ children }) {
     // Any signed-in request that comes back 401 (e.g. the 7-day token expired) logs out,
     // and the private routes then send the user to /login.
     setUnauthorizedHandler(logout);
-    if (tokenStore.get()) checkSavedToken().then(applyStartup);
+    if (!tokenStore.get()) return undefined;
+    // A check that finishes after this effect was cleaned up is ignored. Otherwise an outdated
+    // answer could sign the user back in after a logout (React runs effects twice in development,
+    // so there are two checks in flight on every page load there).
+    let current = true;
+    checkSavedToken().then((result) => {
+      if (current) applyStartup(result);
+    });
+    return () => {
+      current = false;
+    };
   }, [logout, applyStartup]);
 
   const retryStartup = useCallback(() => {
