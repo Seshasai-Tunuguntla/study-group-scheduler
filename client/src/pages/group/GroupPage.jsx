@@ -7,6 +7,7 @@ import ErrorState from '../../components/ErrorState';
 import TimeZoneNote from '../../components/TimeZoneNote';
 import NotFound from '../NotFound';
 import SessionCard from './SessionCard';
+import { names } from './names';
 
 // Short labels so all four fit side by side on a phone.
 const TABS = [
@@ -25,7 +26,7 @@ export function GroupRoute() {
 
 function GroupPage({ groupId }) {
   // Attendance depends on everyone's availability, which a "keep my local hours" switch can move.
-  const { availabilityVersion } = useAuth();
+  const { user, availabilityVersion } = useAuth();
   const groupLoad = useLoad(() => api.getGroup(groupId), groupId);
   const sessionLoad = useLoad(() => api.getSession(groupId), `${groupId}:${availabilityVersion}`);
   const group = groupLoad.data?.group;
@@ -45,7 +46,8 @@ function GroupPage({ groupId }) {
   }
 
   const isOrganizer = group.myRole === 'ORGANIZER';
-  const responded = group.members.filter((member) => member.availabilityUpdatedAt !== null).length;
+  const waitingOn = group.members.filter((member) => member.availabilityUpdatedAt === null);
+  const responded = group.members.length - waitingOn.length;
 
   return (
     <div className="page">
@@ -55,10 +57,15 @@ function GroupPage({ groupId }) {
         </Link>
         <div className="title-row">
           <h1>{group.name}</h1>
-          <span className={`chip chip-role-${group.myRole.toLowerCase()}`}>{isOrganizer ? 'Organizer' : 'Member'}</span>
+          <span className={isOrganizer ? 'chip chip-accent' : 'chip'}>{isOrganizer ? 'You organize' : 'Member'}</span>
         </div>
-        <p className="page-sub">
-          {group.members.length} {group.members.length === 1 ? 'member' : 'members'} · {responded} added availability
+        <p className="group-status">
+          <strong>
+            {responded} of {group.members.length} replied.
+          </strong>{' '}
+          {waitingOn.length > 0
+            ? `Waiting on ${names(waitingOn, user.id)}.`
+            : 'Everyone has filled in their week.'}
         </p>
         <TimeZoneNote />
       </header>

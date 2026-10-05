@@ -128,10 +128,10 @@ function AvailabilityEditor({ initialRanges, initialSavedAt }) {
       )}
 
       <div className="availability-tools">
-        <button type="button" className="btn-ghost" onClick={() => edit(copyDay(draft, grid))}>
+        <button type="button" className="btn-quiet" onClick={() => edit(copyDay(draft, grid))}>
           Copy Monday to weekdays
         </button>
-        <button type="button" className="btn-ghost" onClick={() => edit(new Set())} disabled={draft.size === 0}>
+        <button type="button" className="btn-quiet" onClick={() => edit(new Set())} disabled={draft.size === 0}>
           Clear
         </button>
         {isTouchScreen && (
@@ -165,7 +165,7 @@ function AvailabilityEditor({ initialRanges, initialSavedAt }) {
         </div>
         <div className="save-actions">
           {dirty && (
-            <button type="button" className="btn-ghost" onClick={() => edit(saved)} disabled={saving}>
+            <button type="button" className="btn-quiet" onClick={() => edit(saved)} disabled={saving}>
               Discard changes
             </button>
           )}

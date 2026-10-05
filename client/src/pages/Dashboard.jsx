@@ -8,8 +8,6 @@ import ErrorState from '../components/ErrorState';
 import TimeZoneNote from '../components/TimeZoneNote';
 import { formatCountdown, formatDuration, formatWindow, minutesUntilNext } from '../time/week';
 
-const ROLE_LABELS = { ORGANIZER: 'Organizer', MEMBER: 'Member' };
-
 export default function Dashboard() {
   const { data, error, loading, reload } = useLoad(() => api.listGroups(), 'groups');
   const groups = data?.groups;
@@ -17,107 +15,98 @@ export default function Dashboard() {
   return (
     <div className="page">
       <header className="page-head">
-        <h1>Your study groups</h1>
+        <h1>Your groups</h1>
         <TimeZoneNote />
       </header>
 
-      <div className="layout layout-dashboard">
-        <div className="main-column">
-          {loading && !groups ? (
-            <Loading label="Loading your groups…" />
-          ) : error && !groups ? (
-            <ErrorState error={error} onRetry={reload} title="Couldn't load your groups" />
+      {loading && !groups ? (
+        <Loading label="Loading your groups…" />
+      ) : error && !groups ? (
+        <ErrorState error={error} onRetry={reload} title="Couldn't load your groups" />
+      ) : (
+        <>
+          <NextSession groups={groups} />
+          {groups.length === 0 ? (
+            <div className="empty group-rows">
+              <p>
+                <strong>You're not in any groups yet.</strong>
+              </p>
+              <p>Start one for your study group, or join one with the code your organizer sent you.</p>
+            </div>
           ) : (
-            <>
-              <UpcomingSessions groups={groups} />
-              <section aria-labelledby="groups-heading">
-                <h2 id="groups-heading">Groups</h2>
-                {groups.length === 0 ? (
-                  <div className="empty">
-                    <p>
-                      <strong>You're not in any groups yet.</strong>
-                    </p>
-                    <p>Create one for your study group, or join one with the code your organizer sent you.</p>
-                  </div>
-                ) : (
-                  <ul className="card-list">
-                    {groups.map((group) => (
-                      <GroupCard key={group.id} group={group} />
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </>
+            <ul className="group-rows" aria-label="Groups">
+              {groups.map((group) => (
+                <GroupRow key={group.id} group={group} />
+              ))}
+            </ul>
           )}
-        </div>
+        </>
+      )}
 
-        <aside className="side">
-          <CreateGroupForm />
-          <JoinGroupForm />
-        </aside>
+      <div className="dash-forms">
+        <CreateGroupForm />
+        <JoinGroupForm />
       </div>
     </div>
   );
 }
 
-// Each group's confirmed weekly session, soonest first, in the user's time zone.
-function UpcomingSessions({ groups }) {
+// The soonest confirmed weekly session across all groups, in the user's time zone.
+// Each group's own session is also shown on its row.
+function NextSession({ groups }) {
   const { user } = useAuth();
-  const sessions = groups
+  const [next] = groups
     .filter((group) => group.session)
     .map((group) => ({ group, minutesAway: minutesUntilNext(group.session.startMinute) }))
     .sort((a, b) => a.minutesAway - b.minutesAway);
 
-  if (sessions.length === 0) return null;
+  if (!next) return null;
+  const { group, minutesAway } = next;
 
   return (
-    <section className="panel upcoming" aria-labelledby="upcoming-heading">
-      <h2 id="upcoming-heading">Your weekly sessions</h2>
-      <ul className="upcoming-list">
-        {sessions.map(({ group, minutesAway }) => (
-          <li key={group.id}>
-            <Link to={`/groups/${group.id}`} className="upcoming-group">
-              {group.name}
-            </Link>
-            <span className="upcoming-time">
-              {formatWindow(group.session.startMinute, group.session.durationMinutes, user.timeZone, { dayStyle: 'long' })}
-            </span>
-            <span className="upcoming-next">Next {formatCountdown(minutesAway)}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <p className="next-session">
+      <span className="next-session-label">Next session</span>
+      <strong>
+        <Link to={`/groups/${group.id}`} className="group-link">
+          {group.name}
+        </Link>
+      </strong>
+      <span>{formatWindow(group.session.startMinute, group.session.durationMinutes, user.timeZone, { dayStyle: 'long' })}</span>
+      <span className="next-session-when">{formatCountdown(minutesAway)}</span>
+    </p>
   );
 }
 
-function GroupCard({ group }) {
+function GroupRow({ group }) {
   const { user } = useAuth();
   const { session } = group;
 
   return (
-    <li className="card group-card">
-      <div className="card-head">
-        <Link to={`/groups/${group.id}`} className="card-title">
+    <li className="group-row">
+      <div>
+        <Link to={`/groups/${group.id}`} className="group-link">
           {group.name}
         </Link>
-        <span className={`chip chip-role-${group.myRole.toLowerCase()}`}>{ROLE_LABELS[group.myRole]}</span>
+        <span className="group-row-role">{group.myRole === 'ORGANIZER' ? 'You organize' : 'Member'}</span>
       </div>
-      <p className="card-meta">
-        {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
-        {' · '}
+      <p className="group-row-session">
         {session ? (
           <>
-            Meets {formatWindow(session.startMinute, session.durationMinutes, user.timeZone, { dayStyle: 'long' })} (
-            {formatDuration(session.durationMinutes)})
+            Meets {formatWindow(session.startMinute, session.durationMinutes, user.timeZone, { dayStyle: 'long' })}
+            <span>{formatDuration(session.durationMinutes)} a week</span>
           </>
         ) : (
-          'No weekly time confirmed yet'
+          'No weekly time yet'
         )}
       </p>
-      {group.availabilityUpdatedAt === null && (
+      {group.availabilityUpdatedAt === null ? (
         <Link to={`/groups/${group.id}/availability`} className="nudge">
-          Add your availability so this group can find a time →
+          Fill in your week
         </Link>
+      ) : (
+        <span className="group-row-role">
+          {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
+        </span>
       )}
     </li>
   );

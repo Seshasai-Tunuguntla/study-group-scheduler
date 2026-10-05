@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { api } from '../../api/client';
 import { useAuth } from '../../hooks/useAuth';
-import JoinCodeTag from '../../components/JoinCodeTag';
+import JoinCode from '../../components/JoinCode';
 
 export default function MembersTab() {
   const { group, isOrganizer, reloadGroup } = useOutletContext();
@@ -52,7 +52,7 @@ export default function MembersTab() {
         <div className="panel invite">
           <h2>Invite people</h2>
           <p className="muted">Share this code. Anyone with it can join from their dashboard.</p>
-          <JoinCodeTag code={group.joinCode} />
+          <JoinCode code={group.joinCode} />
         </div>
       )}
 
@@ -71,11 +71,11 @@ export default function MembersTab() {
                   {isMe && <span className="muted"> (you)</span>}
                 </span>
                 <span className="member-status">
-                  {member.role === 'ORGANIZER' && <span className="chip chip-role-organizer">Organizer</span>}
+                  {member.role === 'ORGANIZER' && <span className="chip chip-accent">Organizer</span>}
                   {member.availabilityUpdatedAt ? (
-                    <span className="status status-done">Added availability</span>
+                    <span className="status status-done">Filled in their week</span>
                   ) : (
-                    <span className="status status-waiting">Hasn't added availability</span>
+                    <span className="status status-waiting">Hasn't filled in their week yet</span>
                   )}
                 </span>
               </div>
@@ -96,7 +96,7 @@ export default function MembersTab() {
                   <span className="chip">{member.required ? 'Required' : 'Optional'}</span>
                 )}
                 {isOrganizer && !isMe && (
-                  <button type="button" className="btn-ghost btn-danger" onClick={() => remove(member)} disabled={busy}>
+                  <button type="button" className="btn-quiet btn-danger" onClick={() => remove(member)} disabled={busy}>
                     {busy ? 'Working…' : 'Remove'}
                   </button>
                 )}
@@ -108,11 +108,11 @@ export default function MembersTab() {
 
       <p className="hint">
         Required members must be free for every suggested time. Optional members count towards attendance but never
-        block a time. Members who haven't added availability yet are left out until they do.
+        block a time. Members who haven't filled in their week yet are left out until they do.
       </p>
 
       {!isOrganizer && (
-        <button type="button" className="btn-ghost btn-danger leave" onClick={leave} disabled={busyUserId !== null}>
+        <button type="button" className="btn-quiet btn-danger leave" onClick={leave} disabled={busyUserId !== null}>
           Leave group
         </button>
       )}

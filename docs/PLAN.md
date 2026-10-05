@@ -175,8 +175,9 @@ Attendance is recalculated from current availability on every request.
 | 5 | Availability API with validation and range merging + tests | Done |
 | 6 | Suggestions endpoint + session confirm/get/delete + tests | Done |
 | 7 | Frontend: auth pages, dashboard, group page (+ Members and Suggestions tabs, session card) | Done |
-| 8 | Availability grid with drag-select and time zone conversion (+ change saved time zone) | Built, in review |
-| 9 | Heatmap UI, preferred-hours control on Suggestions | |
+| 8 | Availability grid with drag-select and time zone conversion (+ change saved time zone) | Done |
+| — | Visual redesign: "Focus" (see Design below) | Done |
+| 9 | Heatmap UI, preferred-hours control on Suggestions | In progress |
 | 10 | Self-resetting demo data + tests | |
 | 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test | |
 | 12 | Deployment config | |
@@ -189,7 +190,30 @@ Attendance is recalculated from current availability on every request.
 - **Loading data:** every screen loads through `useLoad(load, key)`, which handles the loading, error (with retry) and loaded states and ignores out-of-date responses.
 - **Signing out:** any 401 on a signed-in request logs out. At startup, only a 401 clears the saved token; if the server is unreachable, the app shows "Can't reach the server" with Try again instead of logging the user out.
 - **Suggestions tab (built in phase 7):** handles every `reason`, the `mayChange` banner, and organizer Confirm. Session attendance is shown on the group page. Waiting lists say "you" for the viewer.
-- **Look:** the Landlord project's palette, fonts (Barlow / Barlow Condensed) and building blocks; the header's hazard tape became a strip of half-hour slots.
+- **Look:** replaced by the Focus design (below). Phase 7 had reused the Landlord project's look.
+
+## Design: "Focus"
+
+Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 375 px with sample data.
+
+- **Why Focus:**
+  - The project's centrepiece is the scheduling algorithm, and Focus makes its output, the week heatmap, the hero.
+  - It is also the clearest break from the Landlord project: dark rather than light, a compact top bar rather than a page header, and rows rather than cards. On a resume the two read as different products.
+- **Identity:**
+  - Dark slate surfaces, one lamp-amber accent (`#ffb547`), Red Hat Display for headings and Red Hat Text for body.
+  - The brand mark is two offset squares, a lit grid cell over a dimmer one.
+  - No hazard tape, key tags or all-caps labels.
+- **Tokens:** every colour, font and radius is a CSS variable in `:root` in `client/src/index.css`, and component styles use only tokens (no raw colours below the token block). There are semantic tokens for surfaces, text, the accent, the heat scale and status colours, so a light theme is just a second set of values.
+- **Accessibility:**
+  - Text is 10.9-13.6:1, muted text 5.8:1 or more, and amber on surfaces 7.4:1 or more.
+  - Input borders reach 3:1 or more (their own token), and free grid cells are 8.8:1 against empty ones.
+  - The heat scale is a brightness ramp, and the heatmap prints counts, so colour is never the only cue.
+- **Layout:**
+  - A sticky 52 px top bar.
+  - The dashboard has a "Next session" bar and one row per group.
+  - The group page shows "3 of 4 replied. Waiting on Cal.", a session card with an amber edge, tabs as one segmented control, and suggestions as side-by-side cards.
+  - On phones the login form comes before the pitch.
+- **Left for later**, because each needs new behaviour or data, not just styling: a group switcher in the top bar, and a mini week heatmap per group on the dashboard (it needs a heat summary in `GET /groups`).
 
 ## Notes for later phases
 
@@ -221,6 +245,9 @@ Attendance is recalculated from current availability on every request.
 ### Phase 10: demo
 - Demo accounts can't join other groups, and nobody can join the demo group. Same pattern as the Landlord project.
 - Add the one-click "Try the demo" buttons to `client/src/components/AuthLayout.jsx` (left out in phase 7 because the accounts didn't exist yet).
+
+### Phase 11: optional polish
+- **Light theme from the same tokens:** add a second set of values for the `:root` tokens (under `@media (prefers-color-scheme: light)` plus a manual toggle), checking AA contrast again for every pair. No component CSS should need to change; if one does, that's a missing token.
 
 ### Phase 11: README
 - **Design decisions:** prefix sums; non-member 404; organizer-only join code (deliberate); "never saved" vs "saved empty"; update-first transaction ordering (a test caught the race); CHECK constraints in the init migration; password hashes omitted by default.

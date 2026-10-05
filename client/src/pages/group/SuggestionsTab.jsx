@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useLoad } from '../../hooks/useLoad';
 import Loading from '../../components/Loading';
 import ErrorState from '../../components/ErrorState';
-import JoinCodeTag from '../../components/JoinCodeTag';
+import JoinCode from '../../components/JoinCode';
 import { formatDuration, formatWindow } from '../../time/week';
 import { names } from './names';
 
@@ -105,35 +105,32 @@ function SuggestionList({ data }) {
       {message && <p className="flash flash-success" role="status">{message}</p>}
       {error && <p className="flash flash-error" role="alert">{error}</p>}
 
-      <ol className="card-list suggestion-list">
+      <ol className="pick-grid">
         {data.suggestions.map((suggestion, index) => {
           const responded = suggestion.attendees.length + suggestion.missing.length;
+          const confirmed = isConfirmed(suggestion);
           return (
-            <li key={suggestion.startMinute} className="card suggestion">
-              <span className="suggestion-rank" aria-hidden="true">
-                {index + 1}
-              </span>
-              <div className="suggestion-body">
-                <p className="suggestion-time">
-                  {formatWindow(suggestion.startMinute, suggestion.durationMinutes, user.timeZone, { dayStyle: 'long' })}
-                </p>
-                <p className="suggestion-count">
-                  {suggestion.missing.length === 0
-                    ? `Everyone who has responded can make it (${responded})`
-                    : `${suggestion.attendees.length} of ${responded} can make it`}
-                </p>
+            <li key={suggestion.startMinute} className={confirmed ? 'pick-card pick-card-confirmed' : 'pick-card'}>
+              <span className="pick-rank">{index + 1}</span>
+              <p className="pick-time">
+                {formatWindow(suggestion.startMinute, suggestion.durationMinutes, user.timeZone, { dayStyle: 'long' })}
+              </p>
+              <p className="pick-count">
+                {suggestion.missing.length === 0
+                  ? `Everyone who replied can come (${responded})`
+                  : `${suggestion.attendees.length} of ${responded} can come`}
+              </p>
+              <p className="people">
+                <span className="people-label">Can come:</span> {names(suggestion.attendees)}
+              </p>
+              {suggestion.missing.length > 0 && (
                 <p className="people">
-                  <span className="people-label">Can attend</span> {names(suggestion.attendees)}
+                  <span className="people-label">Can't:</span> {names(suggestion.missing)}
                 </p>
-                {suggestion.missing.length > 0 && (
-                  <p className="people">
-                    <span className="people-label">Can't</span> {names(suggestion.missing)}
-                  </p>
-                )}
-              </div>
-              <div className="suggestion-action">
-                {isConfirmed(suggestion) ? (
-                  <span className="chip chip-confirmed">Weekly session</span>
+              )}
+              <div className="pick-action">
+                {confirmed ? (
+                  <span className="chip chip-accent">Weekly session</span>
                 ) : (
                   isOrganizer && (
                     <button
@@ -142,7 +139,7 @@ function SuggestionList({ data }) {
                       onClick={() => confirm(suggestion)}
                       disabled={confirmingAt !== null}
                     >
-                      {confirmingAt === suggestion.startMinute ? 'Confirming…' : 'Confirm'}
+                      {confirmingAt === suggestion.startMinute ? 'Saving…' : 'Make it the session'}
                     </button>
                   )
                 )}
@@ -172,7 +169,7 @@ function NoSuggestions({ data, duration, onDuration }) {
         {isOrganizer ? (
           <>
             <p>Share this code. Anyone with it can join from their dashboard.</p>
-            <JoinCodeTag code={group.joinCode} />
+            <JoinCode code={group.joinCode} />
           </>
         ) : (
           <p>Ask {organizer?.name ?? 'the organizer'} to share the group's join code.</p>

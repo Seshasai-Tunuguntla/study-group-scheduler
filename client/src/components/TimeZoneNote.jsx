@@ -53,7 +53,7 @@ export default function TimeZoneNote() {
             This device is set to <strong>{deviceZone}</strong> ({formatOffset(deviceZone)}), so times here may not match
             your clock.
           </p>
-          <button type="button" className="btn-ghost" onClick={() => setChoosing(true)}>
+          <button type="button" className="btn-quiet" onClick={() => setChoosing(true)}>
             Use this device's time zone
           </button>
         </div>
@@ -86,7 +86,7 @@ export default function TimeZoneNote() {
             <button type="button" className="btn" onClick={switchZone} disabled={saving}>
               {saving ? 'Switching…' : 'Switch time zone'}
             </button>
-            <button type="button" className="btn-ghost" onClick={() => setChoosing(false)} disabled={saving}>
+            <button type="button" className="btn-quiet" onClick={() => setChoosing(false)} disabled={saving}>
               Cancel
             </button>
           </div>

@@ -17,7 +17,7 @@ export default function SessionCard({ groupId, sessionLoad, isOrganizer }) {
   if (data === undefined) {
     if (loadError) return <ErrorState error={loadError} onRetry={reload} title="Couldn't load the weekly session" />;
     return (
-      <section className="panel session-card" aria-busy="true">
+      <section className="panel session" aria-busy="true">
         <p className="muted">Loading the weekly session…</p>
       </section>
     );
@@ -26,8 +26,8 @@ export default function SessionCard({ groupId, sessionLoad, isOrganizer }) {
   const { session } = data;
   if (!session) {
     return (
-      <section className="panel session-card session-card-empty" aria-labelledby="session-heading">
-        <h2 id="session-heading" className="eyebrow">
+      <section className="panel session session-empty" aria-labelledby="session-heading">
+        <h2 id="session-heading" className="session-label">
           Weekly session
         </h2>
         <p>
@@ -61,16 +61,16 @@ export default function SessionCard({ groupId, sessionLoad, isOrganizer }) {
   const { attendees, missing, waitingOn } = session.attendance;
 
   return (
-    <section className="panel session-card" aria-labelledby="session-heading">
+    <section className="panel session" aria-labelledby="session-heading">
       <div className="session-main">
-        <h2 id="session-heading" className="eyebrow">
+        <h2 id="session-heading" className="session-label">
           Weekly session
         </h2>
         <p className="session-time">
           {formatWindow(session.startMinute, session.durationMinutes, user.timeZone, { dayStyle: 'long' })}
         </p>
         <p className="muted">
-          {formatDuration(session.durationMinutes)} · confirmed by {session.confirmedBy.name}
+          {formatDuration(session.durationMinutes)} a week, confirmed by {session.confirmedBy.name}
         </p>
       </div>
       <dl className="attendance">
@@ -92,7 +92,7 @@ export default function SessionCard({ groupId, sessionLoad, isOrganizer }) {
         )}
       </dl>
       {isOrganizer && (
-        <button type="button" className="btn-ghost session-clear" onClick={clear} disabled={clearing}>
+        <button type="button" className="btn-quiet session-clear" onClick={clear} disabled={clearing}>
           {clearing ? 'Clearing…' : 'Clear'}
         </button>
       )}

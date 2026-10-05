@@ -32,16 +32,6 @@ export function Logout() {
   return user ? null : <Navigate to="/login" replace />;
 }
 
-function CalendarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="brand-icon">
-      <rect x="3" y="5" width="18" height="16" rx="3" fill="none" stroke="currentColor" strokeWidth="2.2" />
-      <path d="M3 10h18M8 3v4M16 3v4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
-      <rect x="11" y="13" width="4" height="4" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 // The frame around every page: header, then the page (once the saved login has been checked).
 export default function AppLayout() {
   const { user, loading, startupError, retryStartup } = useAuth();
@@ -51,13 +41,13 @@ export default function AppLayout() {
     <div className="app">
       <header className="topbar">
         <Link to={user ? '/dashboard' : '/login'} className="brand">
-          <CalendarIcon />
+          <span className="brand-mark" aria-hidden="true" />
           <span>Study Scheduler</span>
         </Link>
         {user && (
-          <div className="user-info">
+          <div className="topbar-user">
             <span className="user-name">{user.name}</span>
-            <button type="button" className="btn-ghost" onClick={() => navigate('/logout')}>
+            <button type="button" className="btn-quiet" onClick={() => navigate('/logout')}>
               Log out
             </button>
           </div>

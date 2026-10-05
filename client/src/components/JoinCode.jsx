@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
-// The organizer's invite code, styled like a key tag (as in the Landlord project), with Copy.
-export default function JoinCodeTag({ code }) {
+// The organizer's invite code, large and easy to read out, with Copy.
+export default function JoinCode({ code }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
@@ -15,11 +15,10 @@ export default function JoinCodeTag({ code }) {
   }
 
   return (
-    <div className="key-tag">
-      <span className="key-tag-hole" aria-hidden="true" />
-      <span className="key-tag-label">Join code</span>
-      <code className="key-tag-code">{code}</code>
-      <button type="button" className="key-tag-copy" onClick={copy}>
+    <div className="join-code">
+      <span className="join-code-label">Join code</span>
+      <code>{code}</code>
+      <button type="button" className="btn-quiet" onClick={copy}>
         {copied ? 'Copied' : 'Copy'}
       </button>
     </div>

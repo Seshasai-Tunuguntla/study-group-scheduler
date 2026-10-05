@@ -7,7 +7,7 @@ export default function ErrorState({ error, onRetry, title = "Something went wro
         <p>{error?.message || 'Please try again.'}</p>
       </div>
       {onRetry && (
-        <button type="button" className="btn-ghost" onClick={onRetry}>
+        <button type="button" className="btn-quiet" onClick={onRetry}>
           Try again
         </button>
       )}
