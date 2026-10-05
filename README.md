@@ -9,8 +9,8 @@ the people who have to be there. Everyone sees every time in their own time zone
 **Stack:** React (Vite) · Node.js / Express 5 · PostgreSQL · Prisma · Zod · Jest + Supertest ·
 Vitest · Playwright · GitHub Actions
 
-> **Live demo:** the link goes here once the app is deployed (the next step). Locally, open the app
-> and click **Try as organizer**.
+> **Live demo: [study-group-scheduler-green.vercel.app](https://study-group-scheduler-green.vercel.app)**.
+> Click **Try as organizer** or **Try as member**, no sign-up needed.
 
 ## Try the demo
 

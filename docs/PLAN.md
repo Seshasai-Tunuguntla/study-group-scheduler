@@ -181,7 +181,7 @@ Attendance is recalculated from current availability on every request.
 | 9 | Heatmap UI, preferred-hours control on Suggestions | Done |
 | 10 | Self-resetting demo data + tests | Done |
 | 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test; dashboard mini heatmap; Playwright smoke test; light theme | Done |
-| 12 | Deployment: Vercel (client + API function) and Neon; DB-backed demo reset time and rate limits | Code built and checked locally; live deployment waiting on account steps |
+| 12 | Deployment: Vercel (client + API function) and Neon; DB-backed demo reset time and rate limits | Live; real-phone test and final review to go |
 
 ## Frontend decisions (phase 7)
 
@@ -381,13 +381,21 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - the IP line was logged once;
   - the login was counted under `auth:203.0.113.7`.
 
+### Live deployment (5 October 2026)
+- **Live at https://study-group-scheduler-green.vercel.app** (Vercel project `study-group-scheduler` in the team "Seshasai's projects", next to the Landlord app). The plain `study-group-scheduler.vercel.app` was taken, so Vercel added "-green".
+- **Set up with the Vercel CLI:**
+  - created the project, linked the folder and connected the GitHub repository, so every push to `main` deploys;
+  - Neon added with `vercel integration add neon --plan free_v3 -m region=iad1 -m auth=false --environment production`: a free database in Washington, D.C., the same region as the function, with its variables for Production only. Accepting Neon's terms was the owner's step;
+  - `JWT_SECRET` generated and added by the owner (Production only).
+- **Checked on production:**
+  - the build applied all 3 migrations over the direct connection;
+  - `/api/health` answered 200 (1.3 s on a cold start that also built the demo);
+  - both demo logins worked, with the right time zones;
+  - `GET /groups` returned both demo groups, the session and the heat summaries;
+  - a deep link (`/groups/1/heatmap`) served the app;
+  - "Try as organizer" worked in a real browser.
+- **Client address confirmed:** with `LOG_CLIENT_IP=true`, the first request logged `ip`, `key`, `X-Forwarded-For` and `X-Real-IP`, all equal to the requesting machine's public IPv4. The header held a single entry, as Vercel's docs say. `LOG_CLIENT_IP` was then removed.
+- **Rate limit confirmed:** the `ratelimit` header counted down across requests with the same reset time, so the Postgres store counts.
+
 ### Still to do on the live deployment
-- **Needs the account owner:**
-  - import the repository into Vercel;
-  - add Neon from the Vercel Marketplace, connected to **Production only**;
-  - set `JWT_SECRET` (Production only) and, for the address check, `LOG_CLIENT_IP=true`;
-  - deploy.
-- **Then:**
-  - check `[client-ip]` in the runtime logs against your own public IP, then remove `LOG_CLIENT_IP`;
-  - put the live link in the README;
-  - test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.
+- Test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.
