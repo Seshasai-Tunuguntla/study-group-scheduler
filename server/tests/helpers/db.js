@@ -7,7 +7,7 @@ async function resetDb() {
   if (!dbName.endsWith('_test')) {
     throw new Error(`Refusing to reset "${dbName}": tests must use a database whose name ends in _test`);
   }
-  await prisma.$executeRaw`TRUNCATE "AvailabilityRange", "Session", "Membership", "Group", "User" CASCADE`;
+  await prisma.$executeRaw`TRUNCATE "AvailabilityRange", "Session", "Membership", "Group", "User", "DemoState", "RateLimit" CASCADE`;
 }
 
 module.exports = { resetDb, prisma };

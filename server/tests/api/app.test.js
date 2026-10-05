@@ -30,6 +30,32 @@ describe('app shell', () => {
     expect(res.headers['access-control-allow-origin']).toBe('http://localhost:5180');
   });
 
+  test("CORS allows the site's own origin, as on Vercel where client and API share a domain", async () => {
+    const res = await request(app)
+      .post('/api/auth/login')
+      .set('Host', 'study-scheduler-git-main.vercel.app')
+      .set('Origin', 'https://study-scheduler-git-main.vercel.app')
+      .send({ email: 'nobody@example.com', password: 'wrong-password' });
+
+    expect(res.status).toBe(401); // reached the route
+    expect(res.headers['access-control-allow-origin']).toBe('https://study-scheduler-git-main.vercel.app');
+  });
+
+  test('CORS rejects another site even when it sends our Host', async () => {
+    const res = await request(app)
+      .get('/api/health')
+      .set('Host', 'study-scheduler.vercel.app')
+      .set('Origin', 'https://evil.example');
+
+    expect(res.status).toBe(403);
+  });
+
+  test('CORS rejects a malformed Origin', async () => {
+    const res = await request(app).get('/api/health').set('Origin', 'not a url');
+
+    expect(res.status).toBe(403);
+  });
+
   test('CORS rejects other origins with 403', async () => {
     const res = await request(app).get('/api/health').set('Origin', 'https://evil.example');
 

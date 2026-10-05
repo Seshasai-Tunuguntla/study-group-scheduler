@@ -31,7 +31,7 @@ Same conventions as the author's previous project (Landlord Maintenance Tracker)
 - **Security:** helmet, CORS allow-list via `CLIENT_ORIGIN`, rate limiting on login/register and on failed join attempts
 - **Tests:** Jest + Supertest against a separate `*_test` database; `tests/unit` needs no database
 - **CI:** GitHub Actions: server lint + tests (Postgres 17 service) and client lint + tests (Vitest) + build on every push
-- **Deploy (phase 12):** Vercel (frontend, `/api` rewrite to the backend), Neon (Postgres), and the backend as a Vercel Function (chosen over Render; see "Phase 12: deploy")
+- **Deploy (phase 12):** one Vercel project serving the client's static build and the API as a Vercel Function, with Neon Postgres (chosen over Render; see "Phase 12 decisions")
 - **Central error handler:** Zod -> 400, Prisma P2002 -> 409, P2025 -> 404, `HttpError` -> its status
 - **Local ports:** API 4100, web 5180 (so it can run next to the Landlord project on 4000/5173)
 
@@ -180,8 +180,8 @@ Attendance is recalculated from current availability on every request.
 | — | Visual redesign: "Focus" (see Design below) | Done |
 | 9 | Heatmap UI, preferred-hours control on Suggestions | Done |
 | 10 | Self-resetting demo data + tests | Done |
-| 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test; dashboard mini heatmap; Playwright smoke test; light theme | Built, in review |
-| 12 | Deployment config | |
+| 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test; dashboard mini heatmap; Playwright smoke test; light theme | Done |
+| 12 | Deployment: Vercel (client + API function) and Neon; DB-backed demo reset time and rate limits | Code built and checked locally; live deployment waiting on account steps |
 
 ## Frontend decisions (phase 7)
 
@@ -266,7 +266,7 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - The demo users are upserted: name, time zone and password restored, ids kept, so a logged-in visitor stays logged in.
   - Groups visitors created are deleted.
   - The fixture groups are found by `Group.demoKey` (null on every real group) and keep their ids and join codes. Only their contents are rebuilt: memberships (restoring removed members and required flags), availability and the session. A visitor looking at a demo group during a reset sees fresh data, not "Group not found".
-  - It runs when the server starts, and on a successful demo login when the last reset is 30+ minutes old, so two visitors exploring at the same time don't wipe each other's work. `npm run demo:reset` runs it by hand.
+  - It runs when the server starts, and on a successful demo login, when the last reset is 30+ minutes old, so two visitors exploring at the same time don't wipe each other's work. `npm run demo:reset` runs it by hand. (Phase 12 moved the last reset time into the database for serverless; see "Phase 12 decisions".)
   - A failed reset at start is logged and the API still serves real users.
   - Overlapping resets in one process share one rebuild, and a Postgres advisory lock makes resets in different processes run one after another.
 - **A closed world:** demo accounts can't join any group (403), and nobody can join a group a demo account created (403). So a reset can never touch a real user's data, and a visitor can't use the demo to reach real groups.
@@ -309,7 +309,9 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
 ### Optional polish
 - **Group switcher** in the top bar.
 
-### Phase 12: deploy
+## Phase 12 decisions (deployment)
+
+### Hosting
 - **Hosting decision (checked October 2026): run the API as a Vercel Function, not on Render.**
   - **Why not Render:** Render gives 750 free instance hours per workspace per month and suspends every free service in the workspace when they run out. The Landlord API's keep-awake ping already keeps one service up around the clock (about 720-744 hours a month), so a second free service would run out mid-month. Without a ping, a free Render service sleeps after 15 minutes idle and takes about a minute to wake, which is what the demo buttons' "wake up" note was written for.
   - **Why Vercel:** Vercel deploys an Express app with zero configuration as a single Vercel Function (Fluid compute). The client is going to Vercel anyway. The Hobby plan includes 1,000,000 function invocations, 4 active CPU-hours and 360 GB-hours of provisioned memory a month, far more than a portfolio app uses, with no card and no keep-awake ping. Cold starts take well under a second, not a minute. Hobby is for personal, non-commercial use, which fits a portfolio. The database stays on Neon.
@@ -318,12 +320,74 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
     - Railway: $5 trial credit, then $1 of credit a month. Too little for an always-available API.
     - Fly.io: no free tier for new accounts.
     - Koyeb: closed its free plan to new users in 2026.
-  - **What changes for serverless, to do in phase 12:**
-    - **Demo reset:** "on server start" would mean "on every new function instance", which can wipe a visitor's changes mid-visit. Store the last reset time in the database and reset on start or on demo login only when it is 30+ minutes old. The advisory lock already orders resets from several instances.
-    - **Rate limits:** the in-memory store is per instance, so limits get weaker as instances come and go. Move to a Postgres-backed store, or accept it and document it. Decide together with the `req.ip` check below.
-    - **Shape:** two Vercel projects (client from `client/`, API from `server/`) with a rewrite of `/api/*` from the client to the API, so the browser stays same-origin. Point the entry at `src/app.js` (it exports the app), and run startup work (env check, demo reset) without `app.listen`.
-    - **Prisma:** use Neon's pooled connection string for the app and the direct one (`directUrl`) for `prisma migrate deploy` at build time.
-- After deploying, test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.
-- Requests go browser -> Vercel rewrite -> the API (on Vercel now, rather than Render). With `trust proxy = 1`, `req.ip` may be a Vercel edge IP for everyone, putting all users in one bucket for **both** the auth limiter and the join-code limiter.
-- Log `req.ip` in production, then fix `trust proxy` or the limiters' key function so both use the real client IP, and add a test for the key function.
-- The `TODO(deploy)` comment is in `server/src/app.js`.
+
+### One Vercel project: the client's static build plus the API as a function
+- `vercel.json` (repository root) installs both packages, runs migrations and builds the client. It serves `client/dist`, sends `/api/*` to the function `api/index.js`, and sends every other path to `index.html` (the SPA's own routes).
+- **Why one project, not two:** Vercel's edge overwrites `X-Forwarded-For` with the visitor's address and doesn't pass on addresses from another proxy. With a separate API project behind a rewrite, the API could see the client project's proxy instead of the visitor. In one project every request makes one edge hop, so the address is right. It's also one deployment, one domain (no CORS setup for each preview URL) and one set of environment variables. Vercel Services (several services in one project) would also fit, but it's in beta.
+- **`api/index.js`** checks the required settings (`server/src/env.js`, shared with `server.js`), loads the same Express app as development, and runs `prepare()` once per instance before its first request.
+- **Same-origin CORS:** browsers send `Origin` even on same-origin POSTs, so the API now allows requests whose `Origin` matches the domain they were sent to. That covers production and every preview URL without listing them. Other origins still need `CLIENT_ORIGIN`. A browser sets `Origin` itself, so another site can't fake it.
+
+### The demo reset time lives in the database
+- **Why:** "reset on server start" would mean "reset on every cold start", which could wipe a visitor's changes made minutes earlier through another instance.
+- **How it works:** the time of the last rebuild is a single `DemoState` row (a CHECK keeps it to one row). Server start, each cold start (`prepare()`) and each demo login all call `resetDemoDataIfStale`. It rebuilds only if there's no row, or the row is 30+ minutes old.
+- **Several instances at once:** if they all find the demo due, each checks again after taking the advisory lock, so only the first one rebuilds.
+- **Manual reset:** `npm run demo:reset` still rebuilds whatever the time.
+- **Tests:**
+  - a fresh copy of the modules (a new instance) starting within 30 minutes keeps a visitor's changes, and one starting after 30 minutes rebuilds;
+  - two instances finding the demo due at once rebuild it once (`[false, true]`).
+- **Mutation checks:** removing the check under the lock fails the concurrency test, and removing both checks fails the cold-start tests.
+
+### Rate limits stored in Postgres
+- **The store:** `PostgresStore` (`server/src/middleware/rateLimitStore.js`) is an express-rate-limit store on a small `RateLimit` table. It has one row per limiter and client (`auth:203.0.113.7`) and stores the window end as epoch milliseconds, so no time zone conversion can shift it.
+- **Atomic hits:** each hit is one `INSERT … ON CONFLICT … RETURNING` statement, so concurrent hits on different instances are all counted. It also starts a new window when the old one has ended.
+- **Cleanup:** rows whose window has ended are deleted as requests come in, at most once per window per instance. Serverless instances have no reliable background timer.
+- **Tests:**
+  - counting, prefixes, window restart, get/decrement/reset, cleanup, and 25 concurrent hits;
+  - two limiter instances sharing one count;
+  - per-visitor buckets;
+  - the real app's login limiter in production mode: the 21st attempt from one address gets 429, and another address still gets 401.
+
+### Client address
+- **Trust proxy:** `trust proxy` is 1 hop (`TRUST_PROXY_HOPS` in `server/src/middleware/clientIp.js`): Vercel's edge. Express takes the last `X-Forwarded-For` entry, the one the edge wrote, as `req.ip`.
+- **The key function:** `clientKey` returns the IPv4 address as is and groups IPv6 by /56 subnet (express-rate-limit's `ipKeyGenerator`), because one person often controls a whole IPv6 subnet.
+- **Tests:**
+  - IPv4, IPv4-mapped and IPv6 keys;
+  - the key behind one proxy;
+  - addresses a client puts in front of the proxy's entry are ignored;
+  - different visitors get different keys;
+  - mutation checks: ignoring the proxy, trusting every hop, or dropping the setting all fail tests.
+- **Production check:** `LOG_CLIENT_IP=true` logs, once per instance, how the first request's address arrived (`req.ip`, the key, `X-Forwarded-For`, `X-Real-IP`). It's off by default so visitors' addresses aren't logged.
+
+### Database (Neon)
+- The app uses the pooled `DATABASE_URL` (no `pgbouncer=true` needed: Neon's pooler supports prepared statements).
+- Migrations run during the build (`npm run vercel-build` -> `scripts/migrateDeploy.js`) over the direct `DATABASE_URL_UNPOOLED`. Prisma's migration lock is a session-level lock that a transaction-mode pooler can't hold.
+- The demo reset only takes a transaction-level advisory lock, which works through the pooler.
+
+### Previews never touch the production database
+- **Choice: database variables scoped to Production only, plus a guard in the code.** When adding Neon in Vercel, connect it to the **Production** environment only (untick Preview and Development), and add `JWT_SECRET` for Production only too.
+- **Why not Neon preview branching:** it would give every preview its own copy of the database, so previews would work fully. But the protection would then depend on a toggle in the integration: if it were ever off, previews would quietly get the production database. Scoping the variables means a preview has no database to touch. For a one-person project, previews with a working frontend but no API are a fair trade, since CI and the E2E test run on every push.
+- **The guard (a safety net if the variables are ever scoped wrong):** on Vercel, `VERCEL_ENV` is `preview` for previews. Unless `PREVIEW_HAS_OWN_DATABASE=true` is set:
+  - the build skips migrations (`migrationPlan` in `server/scripts/migrateDeploy.js`);
+  - the API answers every request with 503, "The API is off in preview deployments, which have no database of their own", without loading the app or connecting to a database. So there's no demo reset and no data access.
+- **Switching to preview branching later:** enable Neon's preview branching for the Preview environment, then set `PREVIEW_HAS_OWN_DATABASE=true` for Preview only.
+- **Tests:** the guard for each environment; the build skipping in a preview even with production variables visible, migrating over the direct connection in production, and failing a production build that has no database; and the function answering 503 in a preview without touching the database, but serving the API once opted in. Making the guard never fire fails 4 tests.
+
+### Checked locally before deploying
+- **The build's migration step:** ran against a fresh copy of the database.
+- **A dry run:** the production client build and `api/index.js` behind a local stand-in for the `vercel.json` routes, in production mode with `LOG_CLIENT_IP=true` and `X-Forwarded-For` set the way Vercel's edge sets it. Results:
+  - the demo login worked same-origin with no `CLIENT_ORIGIN`;
+  - a deep link worked;
+  - the new instance rebuilt the demo before its first request;
+  - the IP line was logged once;
+  - the login was counted under `auth:203.0.113.7`.
+
+### Still to do on the live deployment
+- **Needs the account owner:**
+  - import the repository into Vercel;
+  - add Neon from the Vercel Marketplace, connected to **Production only**;
+  - set `JWT_SECRET` (Production only) and, for the address check, `LOG_CLIENT_IP=true`;
+  - deploy.
+- **Then:**
+  - check `[client-ip]` in the runtime logs against your own public IP, then remove `LOG_CLIENT_IP`;
+  - put the live link in the README;
+  - test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.

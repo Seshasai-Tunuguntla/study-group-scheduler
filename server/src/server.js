@@ -1,11 +1,12 @@
+// The long-running server: local development, or any host that runs `npm start`.
+// On Vercel the API runs as a function instead (api/index.js at the repository root).
 require('dotenv').config({ quiet: true });
+const { missingEnv } = require('./env');
 
-// Fail at startup, not on the first request that needs one of these.
-for (const name of ['DATABASE_URL', 'JWT_SECRET']) {
-  if (!process.env[name]) {
-    console.error(`Missing required environment variable: ${name}`);
-    process.exit(1);
-  }
+const missing = missingEnv();
+if (missing.length > 0) {
+  console.error(`Missing required environment variable(s): ${missing.join(', ')}`);
+  process.exit(1);
 }
 
 const app = require('./app');

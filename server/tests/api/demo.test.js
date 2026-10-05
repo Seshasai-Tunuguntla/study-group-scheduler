@@ -11,6 +11,7 @@ const {
   DEMO_USERS,
   RESET_IF_OLDER_THAN_MS,
   resetDemoData,
+  resetDemoDataIfStale,
 } = require('../../src/demo/demo');
 
 const DEMO_EMAILS = DEMO_USERS.map((user) => user.email);
@@ -221,7 +222,7 @@ describe('demo reset', () => {
   });
 
   test('a failed reset at start is logged, and the API still serves requests', async () => {
-    const brokenDb = { $transaction: () => Promise.reject(new Error('database is down')) };
+    const brokenDb = { demoState: { findUnique: () => Promise.reject(new Error('database is down')) } };
     const log = { log: jest.fn(), error: jest.fn() };
 
     const server = await start({ app, prisma: brokenDb, port: 0, log });
@@ -232,6 +233,52 @@ describe('demo reset', () => {
     } finally {
       await new Promise((resolve) => server.close(resolve));
     }
+  });
+
+  // A new copy of the modules is what a new serverless instance is: nothing remembered in memory.
+  const coldStart = () => {
+    let fresh;
+    jest.isolateModules(() => {
+      fresh = require('../../src/startup');
+    });
+    return fresh;
+  };
+
+  test(`a server instance starting within ${RESET_WINDOW_MINUTES} minutes of the last reset keeps visitors' changes`, async () => {
+    await changeEverything();
+    const changed = await demoState();
+    const log = { log: jest.fn(), error: jest.fn() };
+
+    minutesLater(RESET_WINDOW_MINUTES - 1);
+    await coldStart().prepare({ prisma, log });
+
+    expect(await demoState()).toEqual(changed);
+    expect(log.log).toHaveBeenCalledWith('Demo data is recent, not reset');
+  });
+
+  test(`a server instance starting ${RESET_WINDOW_MINUTES}+ minutes after the last reset rebuilds the demo`, async () => {
+    const fresh = await demoState();
+    await changeEverything();
+    const log = { log: jest.fn(), error: jest.fn() };
+
+    minutesLater(RESET_WINDOW_MINUTES + 1);
+    await coldStart().prepare({ prisma, log });
+
+    expect(await demoState()).toEqual(fresh);
+    expect(log.log).toHaveBeenCalledWith('Demo data reset');
+  });
+
+  test('when several instances find the demo due at once, only one rebuilds it', async () => {
+    let otherInstance;
+    jest.isolateModules(() => {
+      otherInstance = require('../../src/demo/demo');
+    });
+
+    minutesLater(RESET_WINDOW_MINUTES + 1);
+    const rebuilt = await Promise.all([resetDemoDataIfStale(prisma), otherInstance.resetDemoDataIfStale(prisma)]);
+
+    // Both saw it due before taking the lock; the second checked again under the lock and skipped.
+    expect(rebuilt.sort()).toEqual([false, true]);
   });
 
   test(`a demo login ${RESET_WINDOW_MINUTES}+ minutes after the last reset restores everything a visitor changed`, async () => {

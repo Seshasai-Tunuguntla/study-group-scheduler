@@ -137,13 +137,19 @@ The API reference and the reasoning behind each phase are in [docs/PLAN.md](docs
   opts in.
 - **Preferred hours are in the viewer's own zone, and kept in their browser.** They're a personal
   way to explore the best times, never shown to others.
+- **Rate limits are counted in Postgres:** logins and failed join attempts are limited per visitor
+  address. The counts live in a small table, so every serverless instance shares them, and each
+  hit is one atomic SQL statement. Behind Vercel's edge (one trusted proxy), `req.ip` is the
+  visitor's own address, and an IPv6 visitor is counted by /56 subnet.
 - **Accessibility:** counts are printed in the heatmap, everything works from the keyboard, and
   `npm run contrast` checks WCAG AA for every colour pair in both themes, in CI.
 
 ### The self-resetting demo
 
-- **When it resets:** when the server starts, and on a demo login 30+ minutes after the last
-  reset, so two visitors exploring at once don't wipe each other's work.
+- **When it resets:** when a server instance starts or someone opens the demo, but only if the
+  last reset was 30+ minutes ago. That time is kept in the database, so a new serverless instance
+  never wipes a visitor's recent changes, and two visitors exploring at once don't wipe each
+  other's work.
 - **What a reset restores:** one transaction restores the demo users (time zones, passwords) and
   the demo groups' contents (availability, required flags, removed members, the session). It also
   deletes groups visitors created.
@@ -156,7 +162,7 @@ The API reference and the reasoning behind each phase are in [docs/PLAN.md](docs
 
 | Suite | What it covers | Count |
 |---|---|---|
-| Server (Jest + Supertest) | Unit: the scheduling algorithm, including a check against a deliberately naive version on many random groups; ranges; time zone shifts. API: every route on a real PostgreSQL test database, covering validation, auth, the access rules for every group route, concurrency and the demo | 316 |
+| Server (Jest + Supertest) | Unit: the scheduling algorithm, including a check against a deliberately naive version on many random groups; ranges; time zone shifts. API: every route on a real PostgreSQL test database, covering validation, auth, the access rules for every group route, concurrency and the demo | 344 |
 | Client tests (Vitest) | The pure helpers behind the grid, heatmap, time zones, settings and theme | 101 |
 | End-to-end (Playwright) | A visitor opens the demo, sees the dashboard, the group and the best times | 1 |
 | Contrast check | WCAG AA for every colour pair the components use, in both themes | 58 pairs |
@@ -172,8 +178,6 @@ and build, and the end-to-end test.
   their saved hours move by an hour on their own calendar until they adjust them. Zones without
   DST, like India, never see this. Storing local times would push the problem onto everyone
   else's view instead.
-- **The rate limiter keeps its counts in memory:** they reset on restart and aren't shared between
-  server instances.
 - **The login token is kept in `localStorage`.** It's simple and works across tabs, but script
   injection could read it. React escapes all output and the app loads no third-party scripts. An
   httpOnly cookie would be the next step.
@@ -215,6 +219,18 @@ npm run dev
 
 ## Deployment
 
-Planned: the client and the API both on Vercel (the API as a Vercel Function), with the database on
-Neon. The hosting comparison and what changes for serverless are in
-[docs/PLAN.md](docs/PLAN.md#phase-12-deploy).
+One Vercel project serves the client's static build and runs the API as a Vercel Function, with the
+database on Neon ([`vercel.json`](vercel.json), [`api/index.js`](api/index.js)):
+
+- `/api/*` goes to the Express app, and every other path to the React app. The client and the API
+  share one domain, so there's no CORS setup, and the API sees each visitor's real address.
+- The build applies database migrations over Neon's direct connection. The app uses the pooled
+  one.
+- A new instance checks once whether the demo is due for a reset before its first request.
+- **Preview deployments never touch the production database.** The database settings are scoped
+  to Production only. As a safety net, a preview build also skips migrations, and a preview's API
+  answers 503 without connecting to any database, unless `PREVIEW_HAS_OWN_DATABASE=true` says it
+  has its own (for example a Neon preview branch).
+
+Why Vercel rather than Render, and every serverless change, are in
+[docs/PLAN.md](docs/PLAN.md#phase-12-decisions-deployment).

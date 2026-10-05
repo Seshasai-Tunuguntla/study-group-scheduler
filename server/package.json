@@ -13,7 +13,8 @@
     "pretest": "node scripts/migrateTestDb.js",
     "test": "jest --runInBand",
     "test:unit": "jest tests/unit",
-    "demo:reset": "node scripts/resetDemo.js"
+    "demo:reset": "node scripts/resetDemo.js",
+    "vercel-build": "node scripts/migrateDeploy.js"
   },
   "engines": {
     "node": ">=22"

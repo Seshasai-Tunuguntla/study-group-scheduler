@@ -97,3 +97,24 @@ model Session {
   confirmedById Int
   confirmedBy   User @relation("SessionConfirmer", fields: [confirmedById], references: [id])
 }
+
+// When the public demo was last rebuilt (src/demo/demo.js). A single row (id 1). It lives in the
+// database, not in memory, because serverless instances start and stop at any time and must all
+// agree on whether the demo is due for a reset.
+model DemoState {
+  id          Int      @id @default(1)
+  lastResetAt DateTime
+}
+
+// Hit counts for the rate limiters (src/middleware/rateLimit.js), shared by every server instance.
+// One row per limiter and client ("auth:203.0.113.7"). Rows whose window has ended are deleted
+// as later requests come in.
+model RateLimit {
+  key       String @id
+  hits      Int
+  // When the window ends, in epoch milliseconds: plain numbers compared in SQL, so no time zone
+  // conversion can shift them.
+  resetAtMs BigInt
+
+  @@index([resetAtMs])
+}

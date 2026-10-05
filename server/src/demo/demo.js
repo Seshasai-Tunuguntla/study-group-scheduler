@@ -3,8 +3,8 @@ const bcrypt = require('bcryptjs');
 const { generateJoinCode } = require('../utils/joinCode');
 
 // The public demo behind the "Try as organizer / Try as member" buttons. Visitors can change
-// anything their account can, so all demo data is rebuilt from the fixture below on server start
-// and when someone opens the demo more than 30 minutes after the last reset.
+// anything their account can, so the demo data is rebuilt from the fixture below when the server
+// starts or someone opens the demo, if the last rebuild was 30+ minutes ago.
 //
 // The fixture is designed to show the app's strengths in one click:
 // - members in India, London and New York, so the two demo logins see the same session at
@@ -79,13 +79,17 @@ const GROUPS = [
   },
 ];
 
-// Any fixed number: resets in different processes (the server, `npm run demo:reset`) take this
-// Postgres lock, so they run one after another instead of both rebuilding at once. Updating the
-// demo users first would also make a second reset wait, but only while that stays the first step;
-// the lock doesn't depend on statement order.
+// Any fixed number: resets in different processes (serverless instances, `npm run demo:reset`)
+// take this Postgres lock, so they run one after another instead of both rebuilding at once.
+// Updating the demo users first would also make a second reset wait, but only while that stays the
+// first step; the lock doesn't depend on statement order.
 const RESET_LOCK_KEY = 461_007;
 
-let lastResetAt = 0;
+// DemoState's single row: when the demo was last rebuilt. It's in the database, not in memory,
+// because serverless instances start at any time. An instance that has just started must not wipe
+// a visitor's changes made 5 minutes ago through another instance.
+const DEMO_STATE_ID = 1;
+
 let resetInFlight = null;
 
 function isDemoEmail(email) {
@@ -97,16 +101,19 @@ function isDemoEmail(email) {
 // flags and session). Users and fixture groups keep their rows and ids, so a visitor who is logged
 // in, or looking at a demo group, just sees fresh data after a reset. Real users' data is never
 // touched: demo accounts can't join other groups and nobody else can join the demo groups.
-async function rebuildDemoData(prisma) {
+// With onlyIfStale, the check is repeated after taking the lock, so when several instances find
+// the demo stale at once, only the first rebuilds it. Resolves to whether this call rebuilt it.
+async function rebuildDemoData(prisma, { onlyIfStale }) {
   const [visitorPassword, fixturePassword] = await Promise.all([
     bcrypt.hash(DEMO_PASSWORD, 10),
     bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10),
   ]);
 
-  await prisma.$transaction(
+  return prisma.$transaction(
     async (tx) => {
       // Released automatically when the transaction ends.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${RESET_LOCK_KEY})`;
+      if (onlyIfStale && !(await isStale(tx))) return false;
 
       const ids = {};
       for (const user of DEMO_USERS) {
@@ -156,28 +163,50 @@ async function rebuildDemoData(prisma) {
           });
         }
       }
+
+      // Date.now() rather than new Date(), so tests can move the clock.
+      const lastResetAt = new Date(Date.now());
+      await tx.demoState.upsert({
+        where: { id: DEMO_STATE_ID },
+        update: { lastResetAt },
+        create: { id: DEMO_STATE_ID, lastResetAt },
+      });
+      return true;
     },
     { timeout: 20000 }
   );
 }
 
-// Callers that overlap (server start, two visitors logging in at once) share one rebuild.
-function resetDemoData(prisma) {
-  resetInFlight ??= rebuildDemoData(prisma)
-    .then(() => {
-      lastResetAt = Date.now();
-    })
-    .finally(() => {
-      resetInFlight = null;
-    });
+// True when the demo has never been built, or was last rebuilt 30+ minutes ago.
+async function isStale(db) {
+  const state = await db.demoState.findUnique({ where: { id: DEMO_STATE_ID } });
+  return !state || Date.now() - state.lastResetAt.getTime() >= RESET_IF_OLDER_THAN_MS;
+}
+
+// Callers in one process that overlap (two visitors logging in at once) share one rebuild.
+function runReset(prisma, options) {
+  resetInFlight ??= rebuildDemoData(prisma, options).finally(() => {
+    resetInFlight = null;
+  });
   return resetInFlight;
 }
 
-// Called when someone logs in to a demo account. A reset already under way is waited for, so the
-// visitor never loads groups that are about to be replaced.
+// Rebuilds the demo now, whenever it was last rebuilt (`npm run demo:reset`).
+function resetDemoData(prisma) {
+  return runReset(prisma, { onlyIfStale: false });
+}
+
+// Rebuilds the demo only if it's due: on server start (every serverless cold start) and on a demo
+// login. A reset already under way in this process is waited for, so a visitor never loads groups
+// that are about to be rebuilt. Resolves to true if the demo was rebuilt for this call (callers in
+// one process that share a rebuild both get true), false if it was fresh or another call rebuilt it.
 async function resetDemoDataIfStale(prisma) {
-  if (!resetInFlight && Date.now() - lastResetAt < RESET_IF_OLDER_THAN_MS) return;
-  await resetDemoData(prisma);
+  if (resetInFlight) {
+    await resetInFlight;
+    return false;
+  }
+  if (!(await isStale(prisma))) return false;
+  return runReset(prisma, { onlyIfStale: true });
 }
 
 module.exports = {
