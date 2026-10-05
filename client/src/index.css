@@ -1230,6 +1230,15 @@ select {
   margin-left: 0.7rem;
 }
 
+/* Sideways cells are too narrow for the badge and the count side by side, but tall enough to
+   stack them: the badge stays top-left and the count moves to the bottom-right corner. */
+.heat-sideways .heat-cell:has(.heat-rank) .heat-count {
+  position: absolute;
+  right: 0.2rem;
+  bottom: 0.15rem;
+  margin-left: 0;
+}
+
 .heat-rank-legend {
   position: static;
   display: inline-grid;
