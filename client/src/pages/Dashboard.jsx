@@ -6,6 +6,7 @@ import { useLoad } from '../hooks/useLoad';
 import Loading from '../components/Loading';
 import ErrorState from '../components/ErrorState';
 import TimeZoneNote from '../components/TimeZoneNote';
+import MiniHeat from '../availability/MiniHeat';
 import { formatCountdown, formatDuration, formatWindow, minutesUntilNext } from '../time/week';
 
 export default function Dashboard() {
@@ -99,6 +100,7 @@ function GroupRow({ group }) {
           'No weekly time yet'
         )}
       </p>
+      <MiniHeat heat={group.heat} timeZone={user.timeZone} />
       {group.availabilityUpdatedAt === null ? (
         <Link to={`/groups/${group.id}/availability`} className="nudge">
           Fill in your week

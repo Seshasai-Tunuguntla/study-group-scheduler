@@ -61,4 +61,53 @@ jobs:
       - run: npm install
       - run: npm run lint
       - run: npm test
+      # WCAG AA contrast for every colour pair the components use, in both themes.
+      - run: npm run contrast
       - run: npm run build
+
+  e2e:
+    name: End-to-end smoke test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: study_scheduler_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      E2E_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/study_scheduler_e2e
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+            e2e/package-lock.json
+      - run: npm install
+        working-directory: server
+      - run: npm install
+        working-directory: client
+      - run: npm install
+        working-directory: e2e
+      # Starts the API (which migrates and seeds the demo) and the built client, then runs the test
+      # in the runner's preinstalled Google Chrome.
+      - run: npm test
+        working-directory: e2e
+      - name: Keep the report and trace if it failed
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: e2e/playwright-report
+          retention-days: 7

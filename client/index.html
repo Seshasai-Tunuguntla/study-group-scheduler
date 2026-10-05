@@ -4,7 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1a2130" />
+    <!-- The page colour of each theme (src/theme/theme.js retargets these while a theme is pinned). -->
+    <meta name="theme-color" content="#eef1f6" media="(prefers-color-scheme: light)" data-theme-color="light" />
+    <meta name="theme-color" content="#1a2130" media="(prefers-color-scheme: dark)" data-theme-color="dark" />
+    <script>
+      // Applies a theme pinned with the theme button before the first paint, so the page never
+      // flashes the other theme. Same key and values as src/theme/theme.js.
+      try {
+        const theme = localStorage.getItem('study-scheduler:theme');
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+      } catch {
+        // Storage blocked: follow the system setting.
+      }
+    </script>
     <meta name="description" content="Find the best weekly meeting time for your study group." />
     <title>Study Scheduler</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />

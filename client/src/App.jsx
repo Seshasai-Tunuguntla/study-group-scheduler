@@ -3,6 +3,7 @@ import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-d
 import { useAuth } from './hooks/useAuth';
 import Loading from './components/Loading';
 import ErrorState from './components/ErrorState';
+import ThemeButton from './components/ThemeButton';
 
 // Signed-out visitors go to /login, which sends them back here after logging in.
 export function RequireAuth() {
@@ -44,14 +45,17 @@ export default function AppLayout() {
           <span className="brand-mark" aria-hidden="true" />
           <span>Study Scheduler</span>
         </Link>
-        {user && (
-          <div className="topbar-user">
-            <span className="user-name">{user.name}</span>
-            <button type="button" className="btn-quiet" onClick={() => navigate('/logout')}>
-              Log out
-            </button>
-          </div>
-        )}
+        <div className="topbar-user">
+          <ThemeButton />
+          {user && (
+            <>
+              <span className="user-name">{user.name}</span>
+              <button type="button" className="btn-quiet" onClick={() => navigate('/logout')}>
+                Log out
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <main className="content">

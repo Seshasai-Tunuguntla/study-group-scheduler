@@ -1,0 +1,16 @@
+{
+  "name": "e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "End-to-end smoke test: the demo, through a real browser, against the built client and the API",
+  "type": "commonjs",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

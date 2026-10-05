@@ -14,6 +14,7 @@ const { isUniqueViolation } = require('../utils/prismaErrors');
 const { HttpError } = require('../utils/httpError');
 const { memberInclude, memberOrder, toMember, toSession } = require('../serializers');
 const { isDemoEmail } = require('../demo/demo');
+const { heatSummary } = require('../services/memberAvailability');
 const availabilityRoutes = require('./availability');
 const suggestionRoutes = require('./suggestions');
 const sessionRoutes = require('./session');
@@ -84,6 +85,14 @@ router.get('/', async (req, res) => {
     orderBy: [{ joinedAt: 'asc' }, { id: 'asc' }],
   });
 
+  // Everyone's availability in all of my groups in one query (not one per group), for the
+  // dashboard's mini heatmaps.
+  const groupMembers = await prisma.membership.findMany({
+    where: { groupId: { in: memberships.map((membership) => membership.groupId) } },
+    select: { groupId: true, availabilityUpdatedAt: true, availability: { select: { startMinute: true, endMinute: true } } },
+  });
+  const membersOf = Map.groupBy(groupMembers, (membership) => membership.groupId);
+
   res.json({
     groups: memberships.map(({ group, role, required, availabilityUpdatedAt }) => ({
       id: group.id,
@@ -95,6 +104,7 @@ router.get('/', async (req, res) => {
       memberCount: group._count.memberships,
       joinCode: visibleJoinCode(group, role),
       session: toSession(group.session),
+      heat: heatSummary(membersOf.get(group.id)),
     })),
   });
 });

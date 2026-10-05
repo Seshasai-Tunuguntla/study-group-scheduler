@@ -1,6 +1,6 @@
 // Pure helpers for the group heatmap: no React, no DOM.
 import { SLOT_MINUTES } from '../time/week';
-import { SLOTS_PER_WEEK } from './grid';
+import { ROWS_PER_DAY, SLOTS_PER_WEEK } from './grid';
 
 // Brightness step for a free count, out of the members who have replied (never-saved members
 // aren't counted, so they never make a slot look busier). 0 = nobody, 4 = everyone who replied,
@@ -57,4 +57,30 @@ export function slotPeople(freeIds, respondedMembers) {
     // Required members who aren't free: while there are any, this half hour is never suggested.
     blockedBy: notFree.filter((member) => member.required),
   };
+}
+
+// The dashboard's one-line summary of a group's week: the longest unbroken stretch with the most
+// members free (ties go to the earliest on the viewer's calendar). `grid` is buildWeekGrid(zone).
+// Returns { startSlot, slots, count }, { allWeek: true, count } when that count holds every half
+// hour, or null when nobody is free at all.
+export function mostFreeStretch(freeCounts, grid) {
+  const count = Math.max(0, ...freeCounts);
+  if (count === 0) return null;
+  const isTop = (slot) => freeCounts[(slot + SLOTS_PER_WEEK) % SLOTS_PER_WEEK] === count;
+
+  let best = null;
+  for (let slot = 0; slot < SLOTS_PER_WEEK; slot++) {
+    if (!isTop(slot) || isTop(slot - 1)) continue; // not the start of a stretch
+    let slots = 1;
+    while (isTop(slot + slots)) slots += 1;
+    const { day, row } = grid.cellOf(slot);
+    const position = day * ROWS_PER_DAY + row;
+    if (!best || slots > best.slots || (slots === best.slots && position < best.position)) {
+      best = { startSlot: slot, slots, count, position };
+    }
+  }
+  // Every slot is at the top count, so no stretch has a start.
+  if (!best) return { allWeek: true, count };
+  const { position: _position, ...stretch } = best;
+  return stretch;
 }

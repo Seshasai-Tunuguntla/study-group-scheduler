@@ -2,6 +2,7 @@
 // session routes need.
 const prisma = require('../prismaClient');
 const { rangesToSlots } = require('../scheduling/ranges');
+const { SLOTS_PER_WEEK } = require('../scheduling/week');
 const { memberInclude, memberOrder } = require('../serializers');
 
 function loadMembersWithAvailability(groupId) {
@@ -25,6 +26,17 @@ function splitByResponse(memberships) {
   };
 }
 
+// The dashboard's week-at-a-glance for one group: how many members are free in each UTC slot.
+// Like the heatmap, only members who have saved their week are counted. Counts only, no names.
+function heatSummary(memberships) {
+  const { responded } = splitByResponse(memberships);
+  const freeCounts = new Array(SLOTS_PER_WEEK).fill(0);
+  for (const membership of responded) {
+    for (const slot of rangesToSlots(membership.availability)) freeCounts[slot] += 1;
+  }
+  return { respondedCount: responded.length, freeCounts };
+}
+
 // The member shape suggestWindows and whoCanAttend take.
 const toSchedulingMember = (membership) => ({
   id: membership.user.id,
@@ -32,4 +44,4 @@ const toSchedulingMember = (membership) => ({
   freeSlots: rangesToSlots(membership.availability),
 });
 
-module.exports = { loadMembersWithAvailability, splitByResponse, toSchedulingMember };
+module.exports = { loadMembersWithAvailability, splitByResponse, heatSummary, toSchedulingMember };

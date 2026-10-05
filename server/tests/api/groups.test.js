@@ -2,7 +2,8 @@ const request = require('supertest');
 const app = require('../../src/app');
 const joinCodes = require('../../src/utils/joinCode');
 const { resetDb, prisma } = require('../helpers/db');
-const { createUser, createGroup, findMembership } = require('../helpers/factories');
+const { createUser, createGroup, findMembership, setAvailability } = require('../helpers/factories');
+const { range, slotOf } = require('../unit/scheduling/weekHelpers');
 
 beforeEach(resetDb);
 afterEach(() => jest.restoreAllMocks());
@@ -120,6 +121,7 @@ describe('GET /api/groups', () => {
         memberCount: 3,
         joinCode: null,
         session: null,
+        heat: { respondedCount: 0, freeCounts: new Array(336).fill(0) },
       },
       expect.objectContaining({
         id: anasOwnGroup.id,
@@ -143,6 +145,50 @@ describe('GET /api/groups', () => {
       durationMinutes: 90,
       confirmedAt: expect.any(String),
     });
+  });
+
+  test("includes each group's heat summary: how many are free in each UTC slot", async () => {
+    const { organizer, ana, ben, group } = await setup();
+    // The organizer's Sunday-night block wraps into Monday (stored as two ranges).
+    await setAvailability(organizer, group, [range('Mon 09:00', 'Mon 10:00'), range('Sun 23:30', 'END'), range('Mon 00:00', 'Mon 00:30')]);
+    await setAvailability(ana, group, [range('Mon 09:30', 'Mon 10:30')]);
+    // Ben never saved: he isn't counted, and doesn't lower any count.
+
+    const { heat } = (await api.list(ana)).body.groups[0];
+
+    expect(heat.respondedCount).toBe(2);
+    expect(heat.freeCounts).toHaveLength(336);
+    const expected = new Array(336).fill(0);
+    expected[slotOf('Mon 09:00')] = 1;
+    expected[slotOf('Mon 09:30')] = 2;
+    expected[slotOf('Mon 10:00')] = 1;
+    expected[slotOf('Sun 23:30')] = 1;
+    expected[slotOf('Mon 00:00')] = 1;
+    expect(heat.freeCounts).toEqual(expected);
+
+    // Saving an empty week counts as replying, without adding any free time.
+    await setAvailability(ben, group, []);
+    const after = (await api.list(ana)).body.groups[0].heat;
+    expect(after.respondedCount).toBe(3);
+    expect(after.freeCounts).toEqual(expected);
+  });
+
+  test('keeps the heat summaries of different groups apart, and gives counts only', async () => {
+    const { organizer, ana, group } = await setup();
+    const anasOwnGroup = await createGroup(ana, [organizer], { name: "Ana's group" });
+    await setAvailability(ana, group, [range('Tue 18:00', 'Tue 19:00')]);
+    await setAvailability(ana, anasOwnGroup, [range('Fri 12:00', 'Fri 12:30')]);
+    await setAvailability(organizer, anasOwnGroup, [range('Fri 12:00', 'Fri 12:30')]);
+
+    const [first, second] = (await api.list(ana)).body.groups;
+
+    expect(Object.keys(first.heat)).toEqual(['respondedCount', 'freeCounts']);
+    expect(first.heat.respondedCount).toBe(1);
+    expect(first.heat.freeCounts[slotOf('Tue 18:00')]).toBe(1);
+    expect(first.heat.freeCounts[slotOf('Fri 12:00')]).toBe(0);
+    expect(second.heat.respondedCount).toBe(2);
+    expect(second.heat.freeCounts[slotOf('Fri 12:00')]).toBe(2);
+    expect(second.heat.freeCounts[slotOf('Tue 18:00')]).toBe(0);
   });
 
   test('is empty for someone in no groups', async () => {

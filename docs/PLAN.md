@@ -31,7 +31,7 @@ Same conventions as the author's previous project (Landlord Maintenance Tracker)
 - **Security:** helmet, CORS allow-list via `CLIENT_ORIGIN`, rate limiting on login/register and on failed join attempts
 - **Tests:** Jest + Supertest against a separate `*_test` database; `tests/unit` needs no database
 - **CI:** GitHub Actions: server lint + tests (Postgres 17 service) and client lint + tests (Vitest) + build on every push
-- **Deploy (phase 12):** Vercel (frontend, `/api` rewrite to the backend), Neon (Postgres), Render (backend)
+- **Deploy (phase 12):** Vercel (frontend, `/api` rewrite to the backend), Neon (Postgres), and the backend as a Vercel Function (chosen over Render; see "Phase 12: deploy")
 - **Central error handler:** Zod -> 400, Prisma P2002 -> 409, P2025 -> 404, `HttpError` -> its status
 - **Local ports:** API 4100, web 5180 (so it can run next to the Landlord project on 4000/5173)
 
@@ -102,7 +102,7 @@ organizer-only route gets **403**. Errors are always `{ error, details? }`.
 | Method | Path | Who | Response |
 |---|---|---|---|
 | POST | `/groups` `{ name }` | anyone | 201 `{ group }` (caller is organizer) |
-| GET | `/groups` | anyone | `{ groups: [{ id, name, myRole, required, availabilityUpdatedAt, memberCount, joinCode, session }] }` |
+| GET | `/groups` | anyone | `{ groups: [{ id, name, myRole, required, availabilityUpdatedAt, memberCount, joinCode, session, heat }] }` |
 | GET | `/groups/:id` | member | `{ group: { id, name, createdAt, joinCode, myRole, members, session } }` |
 | POST | `/groups/join` `{ joinCode }` | anyone | 201 `{ group }`; 404 unknown code; 409 already a member; 403 for a demo account, or a code of a group a demo account created |
 | PATCH | `/groups/:id/members/:userId` `{ required }` | organizer | `{ member }` |
@@ -111,6 +111,7 @@ organizer-only route gets **403**. Errors are always `{ error, details? }`.
 - `joinCode` is `null` for everyone except the organizer (a deliberate choice; note it in the README).
 - `member` = `{ userId, name, role, required, joinedAt, availabilityUpdatedAt }`: names and roles only, never emails or time zones.
 - `session` (summary) = `{ startMinute, durationMinutes, confirmedAt }` or `null`.
+- `heat` = `{ respondedCount, freeCounts }`: `freeCounts[i]` is how many members who have saved their week are free in UTC slot i (336 numbers). Counts only, for the dashboard's mini heatmap.
 
 ### Availability
 | Method | Path | Body | Response |
@@ -178,8 +179,8 @@ Attendance is recalculated from current availability on every request.
 | 8 | Availability grid with drag-select and time zone conversion (+ change saved time zone) | Done |
 | — | Visual redesign: "Focus" (see Design below) | Done |
 | 9 | Heatmap UI, preferred-hours control on Suggestions | Done |
-| 10 | Self-resetting demo data + tests | Built, in review |
-| 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test; dashboard mini heatmap | |
+| 10 | Self-resetting demo data + tests | Done |
+| 11 | README for recruiters: screenshots, architecture diagram, design decisions, known trade-offs, how to run and test; dashboard mini heatmap; Playwright smoke test; light theme | Built, in review |
 | 12 | Deployment config | |
 
 ## Frontend decisions (phase 7)
@@ -203,7 +204,7 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - Dark slate surfaces, one lamp-amber accent (`#ffb547`), Red Hat Display for headings and Red Hat Text for body.
   - The brand mark is two offset squares, a lit grid cell over a dimmer one.
   - No hazard tape, key tags or all-caps labels.
-- **Tokens:** every colour, font and radius is a CSS variable in `:root` in `client/src/index.css`, and component styles use only tokens (no raw colours below the token block). There are semantic tokens for surfaces, text, the accent, the heat scale and status colours, so a light theme is just a second set of values.
+- **Tokens:** every colour, font and radius is a CSS variable in `:root` in `client/src/index.css`, and component styles use only tokens (no raw colours below the token block). There are semantic tokens for surfaces, text, the accent, the heat scale and status colours. The light theme (phase 11) gives each colour token a second value through `light-dark()`.
 - **Accessibility:**
   - Text is 10.9-13.6:1, muted text 5.8:1 or more, and amber on surfaces 7.4:1 or more.
   - Input borders reach 3:1 or more (their own token), and free grid cells are 8.8:1 against empty ones.
@@ -213,7 +214,7 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
   - The dashboard has a "Next session" bar and one row per group.
   - The group page shows "3 of 4 replied. Waiting on Cal.", a session card with an amber edge, tabs as one segmented control, and suggestions as side-by-side cards.
   - The login page reads: what the app does, the demo buttons, the form, then a glimpse of the heatmap. Wide screens put the form beside the rest.
-- **Left for later**, because each needs new behaviour or data, not just styling: a mini week heatmap per group on the dashboard (phase 11, needs a heat summary in `GET /groups`) and a group switcher in the top bar (optional).
+- **Left for later**, because each needs new behaviour or data, not just styling: a mini week heatmap per group on the dashboard (built in phase 11) and a group switcher in the top bar (optional).
 
 ## Availability grid decisions (phase 8)
 
@@ -271,33 +272,58 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
 - **A closed world:** demo accounts can't join any group (403), and nobody can join a group a demo account created (403). So a reset can never touch a real user's data, and a visitor can't use the demo to reach real groups.
 - **Tests** (`server/tests/api/demo.test.js`) cover the data's story, the reset on start (and a failed one), the 30-minute window both ways, that a wrong password or a real login never resets, every kind of visitor change being restored, user and group ids surviving a reset, concurrent resets, real users' data being untouched, and both join blocks. Each protection was also broken on purpose to check a test fails.
 
-## Notes for later phases
+## Phase 11 decisions
 
-### Phase 11: dashboard mini heatmap (firm)
-- Each group row on the dashboard gets a small week heatmap, so the busiest times are visible without opening the group.
-- **API addition:** `GET /groups` gains `heat: { respondedCount, freeCounts }` per group, where `freeCounts` has 336 numbers (how many members who have saved are free in each UTC slot). Load every group's ranges in one query, not one per group, and never count never-saved members. The response stays counts only: no names or ids.
-- **Client:** draw it with the same `buildWeekGrid` and `heatLevel` steps as the group heatmap, in the viewer's zone. Give it a text alternative, such as "Busiest: Thursday 19:30, 4 of 5 free".
-- **Tests:** the counts, never-saved members not counted, and the summary only for the caller's own groups.
+### Dashboard mini heatmap
+- **API:** `GET /groups` returns `heat: { respondedCount, freeCounts }` per group: 336 counts of members free in each UTC slot, counting only members who have saved (`heatSummary` in `server/src/services/memberAvailability.js`, next to `splitByResponse`). Every group's ranges come from one extra query, not one per group. Counts only, no names or ids.
+- **Client:** `MiniHeat.jsx` draws a row per day and a cell per half hour in the viewer's zone, with the group heatmap's `heatLevel` steps. The grid is too small to read counts from, so it is hidden from screen readers. Its caption carries the meaning in words: "Most free: Thu 19:30 – 22:00 (4 of 5)".
+- **The caption** is the longest unbroken stretch at the top count, with ties going to the earliest on the viewer's own calendar (`mostFreeStretch`, Vitest). It follows stretches from Sunday night into Monday, and says "free all week" or "no free time marked yet" when that's the case.
+- **Layout:** a fourth column in the group row on wide screens, and stacked on phones.
 
-### Phase 11: optional polish
-- **Light theme from the same tokens:** add a second set of values for the `:root` tokens (under `@media (prefers-color-scheme: light)` plus a manual toggle), checking AA contrast again for every pair. No component CSS should need to change; if one does, that's a missing token.
-- **Group switcher** in the top bar.
+### End-to-end smoke test (Playwright)
+- **The test** (`e2e/tests/demo.spec.js`): "Try as organizer" -> the dashboard (session time and mini heatmap caption) -> the group ("5 of 6 replied") -> Suggestions (3 picks, the top one is the weekly session, "Still waiting on Cal"). It asserts on roles and visible text, not CSS classes.
+- **Setup** (`e2e/playwright.config.js`):
+  - It runs the **production build** of the client (`vite preview`, which proxies `/api` like the dev server) and the real API.
+  - It uses its own ports (4200, 5280) and its own database (`study_scheduler_e2e`, refused unless the name ends in `_e2e`), so it can run beside the dev servers. The API's demo reset on start seeds it, so there's no extra seed step.
+  - The browser is the installed Google Chrome (`channel: 'chrome'`), which GitHub's Ubuntu runners also have, so no browser download is needed.
+  - The time zone is `Asia/Kolkata` and the locale `en-GB`, so the asserted times are fixed: India has no daylight saving time.
+- **CI:** a third job with its own Postgres service. It keeps the Playwright report and trace as an artifact when the test fails.
 
-### Phase 11: README
-- **Design decisions:** prefix sums; non-member 404; organizer-only join code (deliberate); "never saved" vs "saved empty"; update-first transaction ordering (a test caught the race); CHECK constraints in the init migration; password hashes omitted by default.
-- **Known trade-offs:**
-  - DST shift of the UTC weekly pattern
-  - the rate limiter's in-memory store (resets on restart, single instance only)
-  - `npm audit` reports a high in the Prisma CLI's `deepmerge-ts`: not reachable at runtime, and the suggested fix downgrades Prisma
-  - JWT in localStorage
-  - the demo's password is public, and a visitor's changes last until the next demo login 30+ minutes later (see phase 10)
+### Light theme
+- **One token block:** every colour token is `light-dark(<light>, <dark>)`. The page follows the system setting (`color-scheme: light dark`), and the top-bar button pins one theme with `data-theme` on `<html>`, which sets `color-scheme`. No component CSS changed. The dark values are exactly the Focus values.
+- **Palette:** a cool grey page with white panels (not cream). On white, the lamp amber is deepened (`#a35500`) so links and buttons with white text pass AA. The heat scale goes from pale to deep amber, so more people free is darker. It still changes steadily in brightness, readable without telling hues apart.
+- **Contrast is checked by a script**, not by eye: `client/scripts/checkContrast.mjs` reads the token pairs from `index.css` and checks the 29 colour pairs the components use, in both themes (58 checks). It runs in CI as `npm run contrast`.
+- **The button** is named for what it does ("Switch to light theme"). Switching to the system's own theme removes the pin, so the page follows the system again. The pin is stored in `localStorage`, and a small script in `index.html` applies it before the first paint, so the page never flashes the other theme. The two `theme-color` metas follow the theme too (`client/src/theme/theme.js`, Vitest).
+
+### README
+- It covers the demo's story, the features, the time model and the algorithm, a Mermaid architecture diagram, the design decisions, testing, known trade-offs and how to run it.
+- **Screenshots** in `docs/screenshots/` come from the real app with the demo data (desktop at 1280 px, phones at 375 px), at India time.
 - **Times in the README:** never write a fixed local time for London or New York (e.g. "14:30"): it moves with daylight saving. Give the UTC time, India's time (no DST), or say "the same moment in each member's zone".
 
-### Phase 11/12: end-to-end smoke test
-- Add one Playwright end-to-end smoke test: log in -> open a group -> see suggestions. Run it in CI against a seeded test database and both dev servers (or the built client).
+### Bugs found and fixed along the way
+- **Logging out by loading `/logout` directly could sign the user back in (development only).** React runs effects twice in development, so two "is the saved login still valid?" checks were in flight, and the later one set the user again after the logout. The startup effect now ignores a check that finishes after it was cleaned up. Production runs the effect once, so this only showed in development, but the fix is the correct pattern.
+- **On the wide (sideways) heatmap the best-time badges covered the counts**, because the cells are too narrow for both side by side. Marked cells now stack them: the badge top-left, the count bottom-right.
+
+## Notes for later phases
+
+### Optional polish
+- **Group switcher** in the top bar.
 
 ### Phase 12: deploy
+- **Hosting decision (checked October 2026): run the API as a Vercel Function, not on Render.**
+  - **Why not Render:** Render gives 750 free instance hours per workspace per month and suspends every free service in the workspace when they run out. The Landlord API's keep-awake ping already keeps one service up around the clock (about 720-744 hours a month), so a second free service would run out mid-month. Without a ping, a free Render service sleeps after 15 minutes idle and takes about a minute to wake, which is what the demo buttons' "wake up" note was written for.
+  - **Why Vercel:** Vercel deploys an Express app with zero configuration as a single Vercel Function (Fluid compute). The client is going to Vercel anyway. The Hobby plan includes 1,000,000 function invocations, 4 active CPU-hours and 360 GB-hours of provisioned memory a month, far more than a portfolio app uses, with no card and no keep-awake ping. Cold starts take well under a second, not a minute. Hobby is for personal, non-commercial use, which fits a portfolio. The database stays on Neon.
+  - **Alternatives checked:**
+    - Google Cloud Run: always-free tier of 180,000 vCPU-seconds, 360,000 GiB-seconds and 2 million requests a month, and it scales to zero. It needs a billing account with a card, and a container build. This is the fallback if Vercel doesn't work out.
+    - Railway: $5 trial credit, then $1 of credit a month. Too little for an always-available API.
+    - Fly.io: no free tier for new accounts.
+    - Koyeb: closed its free plan to new users in 2026.
+  - **What changes for serverless, to do in phase 12:**
+    - **Demo reset:** "on server start" would mean "on every new function instance", which can wipe a visitor's changes mid-visit. Store the last reset time in the database and reset on start or on demo login only when it is 30+ minutes old. The advisory lock already orders resets from several instances.
+    - **Rate limits:** the in-memory store is per instance, so limits get weaker as instances come and go. Move to a Postgres-backed store, or accept it and document it. Decide together with the `req.ip` check below.
+    - **Shape:** two Vercel projects (client from `client/`, API from `server/`) with a rewrite of `/api/*` from the client to the API, so the browser stays same-origin. Point the entry at `src/app.js` (it exports the app), and run startup work (env check, demo reset) without `app.listen`.
+    - **Prisma:** use Neon's pooled connection string for the app and the direct one (`directUrl`) for `prisma migrate deploy` at build time.
 - After deploying, test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.
-- Requests go browser -> Vercel rewrite -> Render. With `trust proxy = 1`, `req.ip` may be Vercel's edge IP for everyone, putting all users in one bucket for **both** the auth limiter and the join-code limiter.
+- Requests go browser -> Vercel rewrite -> the API (on Vercel now, rather than Render). With `trust proxy = 1`, `req.ip` may be a Vercel edge IP for everyone, putting all users in one bucket for **both** the auth limiter and the join-code limiter.
 - Log `req.ip` in production, then fix `trust proxy` or the limiters' key function so both use the real client IP, and add a test for the key function.
 - The `TODO(deploy)` comment is in `server/src/app.js`.
