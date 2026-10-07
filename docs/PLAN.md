@@ -399,3 +399,7 @@ Chosen from three mockups (Planner, Focus, Bright), each built at desktop and 37
 
 ### Still to do on the live deployment
 - Test the availability grid on a real phone (iOS Safari and Android Chrome): tap to toggle, scrolling over the grid, "Drag to select", the leave warning, and the sticky Save bar. Emulated touch in desktop browsers isn't the same as a real finger.
+
+## After phase 12: link previews (7 October 2026)
+
+`client/index.html` now has a fuller meta description and title, Open Graph tags and a Twitter/X `summary_large_image` card, so a shared link shows a title, a description and a picture. The picture is the group heatmap from the live demo (dark theme, the weekly session panel, the tabs and the grid), 1200x630 as Open Graph and X expect, in `client/public/og-image.png` so it's served from the site itself; every URL in the tags is absolute on the live domain. `client/src/linkPreview.test.js` checks the tags agree, stay within the lengths platforms show, point at the README's live domain, and that the image exists at the declared size. Checked after deploying with a link-preview tester (opengraph.xyz).
