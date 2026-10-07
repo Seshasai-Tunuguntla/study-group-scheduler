@@ -8,3 +8,8 @@ coverage/
 .DS_Store
 *.log
 .vercel
+
+# Agent skills the Vercel CLI downloads with the Neon integration (local tooling, not the app).
+.agents/
+.claude/skills/
+skills-lock.json
